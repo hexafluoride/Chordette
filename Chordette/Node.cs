@@ -90,11 +90,8 @@ namespace Chordette
 
         public void FixFingers()
         {
-            for (int i = 0; i < Nodes.M; i++)
-            {
-                var random_index = Random.Next(1, Nodes.M);
-                Table[random_index].ID = FindSuccessor(Table[random_index].Start);
-            }
+            var random_index = Random.Next(1, Nodes.M);
+            Table[random_index].ID = FindSuccessor(Table[random_index].Start);
         }
 
         public override string ToString()
