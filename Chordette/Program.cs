@@ -91,7 +91,7 @@ namespace Chordette
                 else
                     incorrect_lookups++;
 
-                Console.Title = $"{stabilize_count} stabilizations, {lookup_count} lookups, {incorrect_lookups} wrong, {correct_lookups} right ({(correct_lookups * 100d) / lookup_count:0.00})%";
+                Console.Title = $"{stabilize_count} stabilizations, {lookup_count} lookups, {incorrect_lookups} wrong, {correct_lookups} right ({(correct_lookups * 100d) / lookup_count:0.00}%)";
 
                 Thread.Sleep((int)(1000d / stab_freq));
             }
