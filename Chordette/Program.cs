@@ -54,11 +54,11 @@ namespace Chordette
 
                 if (Node.Random.NextDouble() < (1d / 10d))
                 {
+                    // randomly test successor(n)
                     var random_id = new byte[pool.M / 8];
                     Node.Random.NextBytes(random_id);
 
                     Console.WriteLine($"successor({random_id.ToUsefulString()}) = {n.FindSuccessor(random_id).ToUsefulString()}");
-                    // randomly test successor(n)
                 }
 
                 Thread.Sleep((int)(1000d / stab_freq));
