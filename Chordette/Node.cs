@@ -33,7 +33,16 @@ namespace Chordette
 
             while (id.IsNotIn(n_prime.ID, n_prime.Successor, start_inclusive: false))
             {
-                n_prime = Nodes[n_prime.ClosestPrecedingFinger(id)];
+                var next_n_prime_id = n_prime.ClosestPrecedingFinger(id);
+
+                if (next_n_prime_id.SequenceEqual(n_prime.ID))
+                {
+                    // TODO: figure out how to actually handle this
+                    Console.WriteLine("FindPredecessor has failed!");
+                    break;
+                }
+
+                n_prime = Nodes[next_n_prime_id];
             }
 
             return n_prime.ID;
