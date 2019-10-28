@@ -8,8 +8,18 @@ namespace Chordette
 {
     public static class Extensions
     {
-        public static string ToUsefulString(this byte[] arr) =>
-            BitConverter.ToString(arr).Replace("-", "").ToLower();
+        public static string ToUsefulString(this byte[] arr, bool shorten = false)
+        {
+            var ret = BitConverter.ToString(arr).Replace("-", "").ToLower();
+
+            if (!shorten)
+                return ret;
+
+            if (ret.Length < 11)
+                return ret;
+
+            return ret.Substring(0, 4) + "..." + ret.Substring(ret.Length - 4, 4);
+        }
 
         public static bool IsIn(this int num, int start, int end, bool start_inclusive = true, bool end_inclusive = true) =>
             new BigInteger(num).ToByteArray().IsIn(new BigInteger(start).ToByteArray(), new BigInteger(end).ToByteArray(), start_inclusive, end_inclusive);

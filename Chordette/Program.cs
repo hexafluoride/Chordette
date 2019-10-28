@@ -46,20 +46,52 @@ namespace Chordette
 
             Console.WriteLine("Stabilizing...");
 
+            // let's hold some statistics
+            int stabilize_count = 0;
+            int lookup_count = 0;
+            int correct_lookups = 0;
+            int incorrect_lookups = 0;
+
             while(true)
             {
                 var random_node = pool.Nodes[Node.Random.Next(pool.Nodes.Count)];
                 random_node.Stabilize();
                 random_node.FixFingers();
+                stabilize_count++;
+
+                // randomly test successor(n)
+                var random_id = new byte[pool.M / 8];
+                Node.Random.NextBytes(random_id);
+
+                var successor_by_chord = n.FindSuccessor(random_id);
+                var successor_actual = pool.GetSuccessorNaive(random_id);
+                lookup_count++;
 
                 if (Node.Random.NextDouble() < (1d / 10d))
                 {
-                    // randomly test successor(n)
-                    var random_id = new byte[pool.M / 8];
-                    Node.Random.NextBytes(random_id);
+                    Console.Write($"successor({random_id.ToUsefulString(true)}) = {successor_by_chord.ToUsefulString(true)} (should be {successor_actual.ToUsefulString(true)}), ");
+                    var prev_fg_color = Console.ForegroundColor;
 
-                    Console.WriteLine($"successor({random_id.ToUsefulString()}) = {n.FindSuccessor(random_id).ToUsefulString()}");
+                    if (successor_by_chord.SequenceEqual(successor_actual))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("correct");
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("incorrect");
+                    }
+
+                    Console.ForegroundColor = prev_fg_color;
                 }
+
+                if (successor_by_chord.SequenceEqual(successor_actual))
+                    correct_lookups++;
+                else
+                    incorrect_lookups++;
+
+                Console.Title = $"{stabilize_count} stabilizations, {lookup_count} lookups, {incorrect_lookups} wrong, {correct_lookups} right ({(correct_lookups * 100d) / lookup_count:0.00})%";
 
                 Thread.Sleep((int)(1000d / stab_freq));
             }
