@@ -22,14 +22,7 @@ namespace Chordette
         public Node this[byte[] id] =>
             Nodes.First(n => n.ID.SequenceEqual(id));
 
-        public IEnumerator<Node> GetEnumerator()
-        {
-            return Nodes.GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return Nodes.GetEnumerator();
-        }
+        public IEnumerator<Node> GetEnumerator() => Nodes.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => Nodes.GetEnumerator();
     }
 }

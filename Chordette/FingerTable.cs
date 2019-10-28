@@ -32,15 +32,8 @@ namespace Chordette
             return finger_id_int.ToPaddedArray(m / 8);
         }
 
-        public IEnumerator<FingerEntry> GetEnumerator()
-        {
-            return ((IEnumerable<FingerEntry>)Entries).GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return this.GetEnumerator();
-        }
+        public IEnumerator<FingerEntry> GetEnumerator() => ((IEnumerable<FingerEntry>)Entries).GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
         public FingerEntry this[int i] => Entries[i];
     }
