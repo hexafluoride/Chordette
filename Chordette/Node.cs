@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Chordette
 {
-    public class Node
+    public class Node : INode
     {
         internal NodePool Nodes { get; set; }
 
