@@ -7,23 +7,23 @@ using System.Text;
 
 namespace Chordette
 {
-    public class NodePool : IEnumerable<Node>
+    public class NodePool : IEnumerable<INode>
     {
         // This is meant to simulate an actual pool of Chord nodes
 
         public int M { get; set; }
-        public List<Node> Nodes { get; set; }
+        public List<INode> Nodes { get; set; }
         
         public NodePool(int initial, int m)
         {
             M = m;
-            Nodes = Enumerable.Range(0, initial).Select(i => new Node(m) { Nodes = this }).ToList();
+            Nodes = Enumerable.Range(0, initial).Select(i => (INode)(new Node(m) { Nodes = this })).ToList();
         }
 
-        public Node this[byte[] id] =>
+        public INode this[byte[] id] =>
             Nodes.First(n => n.ID.SequenceEqual(id));
 
-        public IEnumerator<Node> GetEnumerator() => Nodes.GetEnumerator();
+        public IEnumerator<INode> GetEnumerator() => Nodes.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => Nodes.GetEnumerator();
     }
 }

@@ -29,7 +29,7 @@ namespace Chordette
 
         public byte[] FindPredecessor(byte[] id)
         {
-            var n_prime = this;
+            var n_prime = (INode)this;
 
             while (id.IsNotIn(n_prime.ID, n_prime.Successor, start_inclusive: false))
             {
