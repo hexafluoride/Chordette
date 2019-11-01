@@ -29,14 +29,14 @@ namespace Chordette
 
         private void Log(string msg)
         {
-            return;
-
+#if DEBUG
             lock (Extensions.GlobalPrintLock)
             {
                 Console.Write($"{DateTime.UtcNow.ToString("HH:mm:ss.ffff")} [");
                 ID.Print();
                 Console.WriteLine($"] {msg}");
             }
+#endif
         }
 
         public Node(IPAddress listen_addr, int port, int m)

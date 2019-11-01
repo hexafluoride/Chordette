@@ -67,8 +67,7 @@ namespace Chordette
 
         private void Log(string msg)
         {
-            return;
-
+#if DEBUG
             lock (Extensions.GlobalPrintLock)
             {
                 Console.Write($"{DateTime.UtcNow.ToString("HH:mm:ss.ffff")} [");
@@ -77,6 +76,7 @@ namespace Chordette
                 SelfNode.ID.Print();
                 Console.WriteLine($"] {msg}");
             }
+#endif
         }
 
         public RemoteNode(INode self_node, Socket socket)
