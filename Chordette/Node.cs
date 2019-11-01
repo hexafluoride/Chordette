@@ -47,8 +47,7 @@ namespace Chordette
             // current Chordette peer ID coding:
             // 4 bytes IPv4 address
             // 2 bytes TCP listening port
-            var offset = ID.Length - 6;
-            offset = 0;
+            var offset = 0;
 
             Array.Copy(listen_addr.GetAddressBytes(), 0, ID, offset, 4);
             Array.Copy(BitConverter.GetBytes((short)port), 0, ID, offset + 4, 2);
@@ -112,10 +111,8 @@ namespace Chordette
                     Log("FindPredecessor has failed!");
                     break;
                 }
-
-                //Debug.Assert(next_n_prime_id != null && next_n_prime_id.Length > 0);
+                
                 n_prime = Nodes[next_n_prime_id];
-                //Debug.Assert(n_prime != null);
             }
 
             return n_prime.ID;
@@ -151,11 +148,11 @@ namespace Chordette
 
                 int max_tries = 10;
 
-                while ((proposed_successor == null || proposed_successor.Length != id.Length/* || proposed_successor.SequenceEqual(ID)*/) &&
+                while ((proposed_successor == null || proposed_successor.Length != id.Length) &&
                     max_tries-- > 0)
                     proposed_successor = n_prime.FindSuccessor(this.ID);
                 
-                if(proposed_successor == null || proposed_successor.Length != id.Length/* || proposed_successor.SequenceEqual(ID)*/)
+                if(proposed_successor == null || proposed_successor.Length != id.Length)
                 {
                     Log($"Failed to join the network, exiting");
                     return false;

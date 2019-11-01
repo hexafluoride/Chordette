@@ -35,8 +35,7 @@ namespace Chordette
             // current Chordette peer ID coding:
             // 4 bytes IPv4 address
             // 2 bytes TCP listening port
-
-            //var offset = id.Length - 6;
+            
             var offset = 0;
 
             var ip_bytes = id.Skip(offset).Take(4).ToArray();
