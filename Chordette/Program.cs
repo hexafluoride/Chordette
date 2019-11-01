@@ -16,9 +16,9 @@ namespace Chordette
             int m = 160;
             int node_count = 64;
 
-            double heartbeat = 15; // one cycle of the test loop per 100ms
+            double heartbeat = 15; // one cycle of the test loop per 15ms
             double stab_freq = 1; // a random node is stabilized every cycle
-            double join_freq = 10; // a random node is joined every 15 cycles
+            double join_freq = 5; // a random node is joined every 5 cycles
             double test_freq = 2; // a successor(n) test is performed every 2 cycles
             double print_freq = 10; // 1 successor(n) test is printed to the console for every 10 tests
 
@@ -61,8 +61,9 @@ namespace Chordette
                     switch(Console.ReadKey(true).Key)
                     {
                         case ConsoleKey.Spacebar:
+                            heartbeat = 500;
                             join_freq = stab_freq = test_freq = 1;
-                            print_freq = 100;
+                            print_freq = 1;
                             break;
                     }
                 }
