@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
@@ -8,6 +9,17 @@ using System.Threading;
 namespace Chordette
 {
     public delegate void RemoteNodeMessageHandler(object sender, RemoteNodeMessageEventArgs e);
+    public delegate void OnRemoteNodeDisconnect(object sender, RemoteNodeDisconnectingEventArgs e);
+
+    public class RemoteNodeDisconnectingEventArgs : EventArgs
+    {
+        public bool OurRequest { get; set; }
+
+        public RemoteNodeDisconnectingEventArgs(bool our_request)
+        {
+            OurRequest = our_request;
+        }
+    }
 
     public class RemoteNodeMessageEventArgs : EventArgs
     {
@@ -32,14 +44,42 @@ namespace Chordette
         public byte[] ID { get; private set; }
         public INode SelfNode { get; set; }
 
+        public static long SentMessages { get; set; }
+        public static long ReceivedMessages { get; set; }
+
+        public DateTime ConnectionTime { get; set; }
+        public DateTime LastMessage { get; set; }
+
         public Socket Connection { get; set; }
 
-        private Dictionary<byte[], ManualResetEvent> Waiters = new Dictionary<byte[], ManualResetEvent>();
-        private Dictionary<byte[], byte[]> Replies = new Dictionary<byte[], byte[]>();
+        private Dictionary<byte[], string> Methods = new Dictionary<byte[], string>(new StructuralEqualityComparer()); // used for debugging purposes only
+        private Dictionary<byte[], ManualResetEvent> Waiters = new Dictionary<byte[], ManualResetEvent>(new StructuralEqualityComparer());
+        private Dictionary<byte[], byte[]> Replies = new Dictionary<byte[], byte[]>(new StructuralEqualityComparer());
 
         private HandlerDictionary<string, RemoteNodeMessageHandler> MessageHandlers = new HandlerDictionary<string, RemoteNodeMessageHandler>();
+        
+        private Thread ReceiveThread { get; set; }
+        private CancellationTokenSource DisconnectCanceller = new CancellationTokenSource();
+        private ManualResetEvent DisconnectedEvent = new ManualResetEvent(false);
 
-        public RemoteNode(INode self_node, byte[] id, Socket socket)
+        public bool Disconnected { get; set; }
+        public event OnRemoteNodeDisconnect DisconnectEvent;
+
+        private void Log(string msg)
+        {
+            return;
+
+            lock (Extensions.GlobalPrintLock)
+            {
+                Console.Write($"{DateTime.UtcNow.ToString("HH:mm:ss.ffff")} [");
+                ID.Print();
+                Console.Write(":");
+                SelfNode.ID.Print();
+                Console.WriteLine($"] {msg}");
+            }
+        }
+
+        public RemoteNode(INode self_node, Socket socket)
         {
             Connection = socket;
             SelfNode = self_node;
@@ -50,14 +90,78 @@ namespace Chordette
             MessageHandlers.Add("get_successor", (s, e) => { Reply(e.RequestID, SelfNode.Successor); });
             MessageHandlers.Add("get_predecessor", (s, e) => { Reply(e.RequestID, SelfNode.Predecessor); });
             MessageHandlers.Add("get_id", (s, e) => { Reply(e.RequestID, SelfNode.ID); });
+            MessageHandlers.Add("disconnect", (s, e) =>
+            {
+                // ignore whether this is a temporary or permanent disconnect for now
+                Disconnect(false, false);
+            });
         }
 
         public void Start()
         {
-            var thread = new Thread(ReceiveLoop);
-            thread.Start();
-
+            // TODO: Add timeouts to stop malicious peers from stalling us forever
+            ReceiveThread = new Thread(ReceiveLoop);
+            ReceiveThread.Start();
+            
             ID = Request("get_id");
+            ConnectionTime = DateTime.UtcNow;
+        }
+
+        public void Disconnect(bool temporary, bool message = true)
+        {
+            if (message)
+                Invoke("disconnect", new byte[] { (byte)(temporary ? 0 : 1) }); // let our peer know that we're going to disconnect
+
+            try
+            {
+                Disconnected = true; // we later use this as a flag to unblock all waiting calls to Request() by returning null early
+                Connection.Close();
+
+                foreach (var pair in Waiters)
+                    pair.Value.Set(); // unblock the threads waiting for a reply
+
+                DisconnectCanceller.Cancel(); // cancel all remaining pending IO
+
+                // just for good measure
+                Methods.Clear();
+                Waiters.Clear();
+                Replies.Clear();
+                MessageHandlers.Clear();
+
+                Log($"ending connection, temporary={temporary}, message={message}");
+            }
+            catch (Exception ex)
+            {
+                Log($"{ex.GetType()} while disconnecting: {ex.Message}");
+            }
+            finally
+            { 
+                DisconnectEvent?.Invoke(this, new RemoteNodeDisconnectingEventArgs(message));
+            }
+        }
+
+        private bool SendRawMessage(MemoryStream stream) => SendRawMessage(stream.ToArray());
+        private bool SendRawMessage(byte[] message)
+        {
+            if (Disconnected)
+                return false;
+
+            try
+            {
+                var task = Connection.SendAsync(message, SocketFlags.None);
+                task.Wait(DisconnectCanceller.Token);
+
+                if (task.IsCanceled)
+                    return false;
+
+                SentMessages++;
+                LastMessage = DateTime.UtcNow;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private void Invoke(string method, byte[] parameter = default)
@@ -67,55 +171,89 @@ namespace Chordette
             using (var request_ms = new MemoryStream())
             using (var request_builder = new BinaryWriter(request_ms))
             {
+                request_builder.Write((byte)0xFE);
                 request_builder.Write(new byte[4]);
-                request_builder.Write(method);
+                request_builder.Write(method.Length);
+                request_builder.Write(Encoding.ASCII.GetBytes(method));
                 request_builder.Write(parameter.Length);
                 request_builder.Write(parameter);
 
-                Connection.Send(request_ms.ToArray());
+                SendRawMessage(request_ms);
             }
         }
 
         private byte[] Request(string method, byte[] parameter = default)
         {
+            if (Disconnected)
+                return null;
+
             parameter = parameter ?? new byte[0];
 
             var request_id = new byte[4];
             Random.NextBytes(request_id);
 
             var flag = new ManualResetEvent(false);
-            Waiters[request_id] = flag;
 
+            Waiters[request_id] = flag;
+            Methods[request_id] = method;
+            
             using (var request_ms = new MemoryStream())
             using (var request_builder = new BinaryWriter(request_ms))
             {
+                request_builder.Write((byte)0xFE); // request
                 request_builder.Write(request_id);
-                request_builder.Write(method);
+                request_builder.Write(method.Length);
+                request_builder.Write(Encoding.ASCII.GetBytes(method));
                 request_builder.Write(parameter.Length);
                 request_builder.Write(parameter);
 
-                Connection.Send(request_ms.ToArray());
+                SendRawMessage(request_ms);
             }
 
-            flag.WaitOne();
-            var reply = Replies[request_id];
+            // TODO: Add timeouts to stop malicious peers from stalling us forever
+            if (Disconnected || !flag.WaitOne(500))
+            {
+                Replies.Remove(request_id);
+                Waiters.Remove(request_id);
+                Methods.Remove(request_id);
 
-            Replies.Remove(request_id);
-            Waiters.Remove(request_id);
+                if (Disconnected)
+                    Log($"aborting waiting call {method}(0x{request_id.ToUsefulString()}) as we're disconnecting");
+                else
+                    Log($"call to {method} with ID {request_id.ToUsefulString()} timed out");
 
-            return reply;
+                return null;
+            }
+
+            try
+            {
+                var reply = Replies[request_id];
+
+                Replies.Remove(request_id);
+                Waiters.Remove(request_id);
+                Methods.Remove(request_id);
+
+                return reply;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private void Reply(byte[] request_id, byte[] result)
         {
+            result = result ?? new byte[0];
+
             using (var response_ms = new MemoryStream())
             using (var response_builder = new BinaryWriter(response_ms))
             {
+                response_builder.Write((byte)0xFD); // response
                 response_builder.Write(request_id);
                 response_builder.Write(result.Length);
                 response_builder.Write(result);
 
-                Connection.Send(response_ms.ToArray());
+                SendRawMessage(response_ms);
             }
         }
 
@@ -124,34 +262,65 @@ namespace Chordette
             var stream = new NetworkStream(Connection);
             var binary = new BinaryReader(stream);
 
-            while (Connection.Connected)
+            while (Connection.Connected && !Disconnected)
             {
-                var message_type = binary.ReadByte();
-
-                if (message_type == 0xFE) // handle request
+                try
                 {
-                    var request_id = binary.ReadBytes(4);
-                    var method = binary.ReadString();
-                    var param_len = binary.ReadInt32();
-                    param_len = Math.Max(0, Math.Min(4096, param_len));
+                    var message_type = binary.ReadByte();
 
-                    var parameter = binary.ReadBytes(param_len);
-                    var handlers = MessageHandlers[method];
+                    if (message_type == 0xFE) // handle request
+                    {
+                        var request_id = binary.ReadBytes(4);
+                        var method_len = binary.ReadInt32();
+                        method_len = Math.Max(0, Math.Min(4096, method_len));
 
-                    handlers.ForEach(func => func(this, new RemoteNodeMessageEventArgs(ID, request_id, parameter)));
+                        var method = Encoding.ASCII.GetString(binary.ReadBytes(method_len));
+                        var param_len = binary.ReadInt32();
+                        param_len = Math.Max(0, Math.Min(4096, param_len));
+
+                        var parameter = binary.ReadBytes(param_len);
+                        var handlers = MessageHandlers[method];
+
+                        Log($"received call to {method}(0x{request_id.ToUsefulString()}) with {param_len}-byte param {parameter.ToUsefulString()}");
+                        ReceivedMessages++;
+                        LastMessage = DateTime.UtcNow;
+
+                        handlers.ForEach(func => func(this, new RemoteNodeMessageEventArgs(ID, request_id, parameter)));
+                    }
+                    else if (message_type == 0xFD) // handle response
+                    {
+                        var request_id = binary.ReadBytes(4);
+                        var result_len = binary.ReadInt32();
+                        result_len = Math.Max(0, Math.Min(4096, result_len));
+
+                        var result = binary.ReadBytes(result_len);
+
+                        if (!Waiters.ContainsKey(request_id))
+                        {
+                            Log($"received unexpected reply to non-existent request {request_id.ToUsefulString()}");
+                            continue;
+                        }
+
+                        Log($"received {result_len}-byte reply to {Methods[request_id]}(0x{request_id.ToUsefulString()})");
+                        ReceivedMessages++;
+                        LastMessage = DateTime.UtcNow;
+
+                        Replies[request_id] = result;
+                        Waiters[request_id].Set();
+                    }
+                    else
+                        Log($"received invalid message type of 0x{message_type:X2}");
                 }
-                else if (message_type == 0xFD) // handle response
+                catch (Exception ex)
                 {
-                    var request_id = binary.ReadBytes(4);
-                    var result_len = binary.ReadInt32();
-                    result_len = Math.Max(0, Math.Min(4096, result_len));
+                    Log($"{ex.GetType()} thrown in ReceiveLoop(): {ex.Message}");
 
-                    var result = binary.ReadBytes(result_len);
-
-                    Replies[request_id] = result;
-                    Waiters[request_id].Set();
+                    if (!Connection.Connected)
+                        Disconnect(false, false);
                 }
             }
+
+            Log($"exiting ReceiveLoop");
         }
 
         public byte[] ClosestPrecedingFinger(byte[] id)

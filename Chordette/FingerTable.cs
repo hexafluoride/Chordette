@@ -27,7 +27,7 @@ namespace Chordette
             var two_to_ith = BigInteger.Pow(2, i);
             var finger_id_int = (self_int + two_to_ith) % BigInteger.Pow(2, m);
 
-            Debug.Assert(finger_id_int < BigInteger.Pow(2, m), "hol up");
+            //Debug.Assert(finger_id_int < BigInteger.Pow(2, m), "hol up");
 
             return finger_id_int.ToPaddedArray(m / 8);
         }
