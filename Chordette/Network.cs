@@ -11,8 +11,6 @@ namespace Chordette
 {
     public class Network : IEnumerable<INode>
     {
-        // This is meant to simulate an actual pool of Chord nodes
-
         public int M { get; set; }
         public ConcurrentDictionary<byte[], INode> Nodes { get; set; }
         public Node Self { get; set; }
