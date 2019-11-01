@@ -1,14 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Numerics;
 using System.Text;
+using System.Threading;
 
 namespace Chordette
 {
-    public class Node
+    public class Node : INode
     {
-        internal NodePool Nodes { get; set; }
+        internal Network Nodes { get; set; }
 
         public static Random Random = new Random();
 
@@ -18,30 +22,96 @@ namespace Chordette
 
         public byte[] ID { get; set; }
 
-        internal Node(int m)
+        private TcpListener Listener { get; set; }
+        private Thread ListenerThread { get; set; }
+
+        private bool Joined { get; set; }
+
+        private void Log(string msg)
+        {
+#if DEBUG
+            lock (Extensions.GlobalPrintLock)
+            {
+                Console.Write($"{DateTime.UtcNow.ToString("HH:mm:ss.ffff")} [");
+                ID.Print();
+                Console.WriteLine($"] {msg}");
+            }
+#endif
+        }
+
+        public Node(IPAddress listen_addr, int port, int m)
         {
             ID = new byte[m / 8];
             Random.NextBytes(ID);
+
+            // current Chordette peer ID coding:
+            // 4 bytes IPv4 address
+            // 2 bytes TCP listening port
+            var offset = 0;
+
+            Array.Copy(listen_addr.GetAddressBytes(), 0, ID, offset, 4);
+            Array.Copy(BitConverter.GetBytes((short)port), 0, ID, offset + 4, 2);
+
+            Listener = new TcpListener(listen_addr, port);
+            Nodes = new Network(this, m);
 
             Table = new FingerTable(m, this);
             Successor = Table[0].ID;
         }
 
+        public void Start()
+        {
+            Listener.Start();
+
+            ListenerThread = new Thread((ThreadStart)ListenerLoop);
+            ListenerThread.Start();
+
+            Log($"started listening on {Listener.LocalEndpoint}");
+        }
+
+        private void ListenerLoop()
+        {
+            while (true)
+            {
+                var incoming_socket = Listener.AcceptSocket();
+
+                Log($"Incoming connection on {Listener.LocalEndpoint} from {incoming_socket.RemoteEndPoint}");
+                var remote_node = new RemoteNode(this, incoming_socket);
+                remote_node.Start();
+                Log($"Connected to {remote_node.ID.ToUsefulString()} on {incoming_socket.RemoteEndPoint}");
+
+                Nodes.Add(remote_node);
+            }
+        }
+
+        public RemoteNode Connect(IPEndPoint ep)
+        {
+            Log($"Connecting to {ep}...");
+
+            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            socket.Connect(ep);
+
+            var remote_node = new RemoteNode(this, socket);
+            remote_node.Start();
+
+            return remote_node;
+        }
+
         public byte[] FindPredecessor(byte[] id)
         {
-            var n_prime = this;
+            var n_prime = (INode)this;
 
             while (id.IsNotIn(n_prime.ID, n_prime.Successor, start_inclusive: false))
             {
                 var next_n_prime_id = n_prime.ClosestPrecedingFinger(id);
 
-                if (next_n_prime_id.SequenceEqual(n_prime.ID))
+                if (next_n_prime_id == null || next_n_prime_id.SequenceEqual(n_prime.ID))
                 {
                     // TODO: figure out how to actually handle this
-                    Console.WriteLine("FindPredecessor has failed!");
+                    Log("FindPredecessor has failed!");
                     break;
                 }
-
+                
                 n_prime = Nodes[next_n_prime_id];
             }
 
@@ -67,40 +137,76 @@ namespace Chordette
             return this.ID;
         }
 
-        public void Join(byte[] id)
+        public bool Join(byte[] id)
         {
             if (id != null && id.Length != 0)
             {
                 var n_prime = Nodes[id];
                 Predecessor = new byte[0];
-                Successor = n_prime.FindSuccessor(this.ID);
+
+                var proposed_successor = new byte[0];
+
+                int max_tries = 10;
+
+                while ((proposed_successor == null || proposed_successor.Length != id.Length) &&
+                    max_tries-- > 0)
+                    proposed_successor = n_prime.FindSuccessor(this.ID);
+                
+                if(proposed_successor == null || proposed_successor.Length != id.Length)
+                {
+                    Log($"Failed to join the network, exiting");
+                    return false;
+                }
+
+                Log($"New successor: {proposed_successor.ToUsefulString()}");
+                Successor = proposed_successor;
             }
             else
             {
                 Predecessor = id;
             }
+
+            Joined = true;
+            return true;
         }
 
         public void Stabilize()
         {
-            var x = Nodes[Successor].Predecessor;
+            var x = Nodes[Successor]?.Predecessor;
 
             if (x?.IsIn(this.ID, Successor, start_inclusive: false, end_inclusive: false) == true)
+            {
                 Successor = x;
+            }
 
-            Nodes[Successor].Notify(this.ID);
+            Nodes[Successor]?.Notify(this.ID);
         }
 
         public void Notify(byte[] id)
         {
-            if (Predecessor == null || Predecessor.Length == 0 || id.IsIn(Predecessor, this.ID, start_inclusive: false, end_inclusive: false))
+            if (Predecessor == null || Predecessor.Length == 0 || 
+                Predecessor.SequenceEqual(ID) || 
+                id.IsIn(Predecessor, this.ID, start_inclusive: false, end_inclusive: false))
+            {
+                Log($"New predecessor: {id.ToUsefulString()}");
                 Predecessor = id;
+            }
         }
 
         public void FixFingers()
         {
             var random_index = Random.Next(1, Nodes.M);
-            Table[random_index].ID = FindSuccessor(Table[random_index].Start);
+
+            //Log($"Fixing finger {random_index}...");
+            var successor = FindSuccessor(Table[random_index].Start);
+
+            if (successor != null && successor.Length > 0)
+            {
+                Table[random_index].ID = successor;
+                //Log($"Finger {random_index} is now {Table[random_index]}");
+            }
+            else
+                Log($"Couldn't fix finger {random_index}, successor(n) returned nothing");
         }
 
         public override string ToString()

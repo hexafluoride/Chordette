@@ -10,6 +10,9 @@ namespace Chordette
     {
         public static string ToUsefulString(this byte[] arr, bool shorten = false)
         {
+            if (arr == null || arr.Length == 0)
+                return "(none)";
+
             var ret = BitConverter.ToString(arr).Replace("-", "").ToLower();
 
             if (!shorten)
@@ -19,6 +22,43 @@ namespace Chordette
                 return ret;
 
             return ret.Substring(0, 4) + "..." + ret.Substring(ret.Length - 4, 4);
+        }
+
+        public static readonly object GlobalPrintLock = new object();
+        private static readonly object PrintLock = new object();
+
+        public static void Print(this byte[] arr)
+        {
+            var acceptable_colors = new ConsoleColor[]
+            {
+                ConsoleColor.Red,
+                ConsoleColor.Yellow,
+                ConsoleColor.White,
+                ConsoleColor.Blue,
+                ConsoleColor.DarkYellow,
+                ConsoleColor.Green,
+                ConsoleColor.Cyan
+            };
+
+            if (arr == null || arr.Length == 0)
+            {
+                Console.Write("(none)");
+                return;
+            }
+
+            var shortened = arr.ToUsefulString(true);
+            var first_chars = shortened.Substring(0, shortened.Length - 4);
+            var last_chars = shortened.Substring(shortened.Length - 4);
+            var hash = BitConverter.ToUInt32(arr, arr.Length - 4) % acceptable_colors.Length;
+
+            lock (PrintLock)
+            {
+                var prev_color = ConsoleColor.Gray;
+                Console.Write(first_chars);
+                Console.ForegroundColor = acceptable_colors[hash];
+                Console.Write(last_chars);
+                Console.ForegroundColor = prev_color;
+            }
         }
 
         public static bool IsIn(this int num, int start, int end, bool start_inclusive = true, bool end_inclusive = true) =>
