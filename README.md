@@ -10,7 +10,7 @@ Simplified implementation of the [Chord DHT model](https://pdos.csail.mit.edu/pa
 - [ ] Virtual nodes
 
 ## Performance metrics
-The following metrics all scale with log(N) where N = peer count, matching the performance guaranteed laid out in the [Chord whitepaper](https://pdos.csail.mit.edu/papers/chord:sigcomm01/chord_sigcomm.pdf), which corroborates the correctness of this implementation to some degree.
+The following metrics all scale with log(N) where N = peer count, matching the performance guarantees laid out in the [Chord whitepaper](https://pdos.csail.mit.edu/papers/chord:sigcomm01/chord_sigcomm.pdf), which corroborates the correctness of this implementation to some degree.
 
 ![Milliseconds spent per query](https://github.com/hexafluoride/Chordette/blob/master/docs/metrics/time-per-query.png?raw=true)
 
