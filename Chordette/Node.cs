@@ -75,12 +75,26 @@ namespace Chordette
             {
                 var incoming_socket = Listener.AcceptSocket();
 
-                Log($"Incoming connection on {Listener.LocalEndpoint} from {incoming_socket.RemoteEndPoint}");
-                var remote_node = new RemoteNode(this, incoming_socket);
-                remote_node.Start();
-                Log($"Connected to {remote_node.ID.ToUsefulString()} on {incoming_socket.RemoteEndPoint}");
+                try
+                {
+                    Log($"Incoming connection on {Listener.LocalEndpoint} from {incoming_socket.RemoteEndPoint}");
+                    var remote_node = new RemoteNode(this, incoming_socket);
+                    remote_node.Start();
+                    Log($"Connected to {remote_node.ID.ToUsefulString()} on {incoming_socket.RemoteEndPoint}");
 
-                Nodes.Add(remote_node);
+                    Nodes.Add(remote_node);
+                }
+                catch (Exception ex)
+                {
+                    Log($"{ex.GetType()} occurred while trying to accept connection: {ex.Message}");
+
+                    try
+                    {
+                        incoming_socket.Close();
+                        incoming_socket.Dispose();
+                    }
+                    catch { }
+                }
             }
         }
 
@@ -121,7 +135,8 @@ namespace Chordette
         public byte[] FindSuccessor(byte[] id)
         {
             var n_prime = Nodes[FindPredecessor(id)];
-            return n_prime.Successor;
+            var succ = n_prime.Successor;
+            return succ;
         }
 
         public byte[] ClosestPrecedingFinger(byte[] id)
@@ -146,7 +161,7 @@ namespace Chordette
 
                 var proposed_successor = new byte[0];
 
-                int max_tries = 10;
+                int max_tries = 3;
 
                 while ((proposed_successor == null || proposed_successor.Length != id.Length) &&
                     max_tries-- > 0)
@@ -155,6 +170,7 @@ namespace Chordette
                 if(proposed_successor == null || proposed_successor.Length != id.Length)
                 {
                     Log($"Failed to join the network, exiting");
+                    Nodes.Clear();
                     return false;
                 }
 
@@ -195,7 +211,7 @@ namespace Chordette
 
         public void FixFingers()
         {
-            var random_index = Random.Next(1, Nodes.M);
+            var random_index = Random.Next(0, Nodes.M);
 
             //Log($"Fixing finger {random_index}...");
             var successor = FindSuccessor(Table[random_index].Start);

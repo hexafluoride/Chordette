@@ -55,6 +55,24 @@ namespace Chordette
             Remove(id);
         }
 
+        public void Clear()
+        {
+            foreach(var pair in Nodes)
+            {
+                if (!(pair.Value is RemoteNode))
+                    continue;
+
+                try
+                {
+                    ((RemoteNode)pair.Value).Disconnect(true);
+                }
+                catch { }
+            }
+
+            Nodes.Clear();
+            Nodes[Self.ID] = Self;
+        }
+
         private void Remove(byte[] id)
         {
             if (Nodes.TryRemove(id, out INode _))

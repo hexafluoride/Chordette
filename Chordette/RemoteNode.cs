@@ -44,6 +44,7 @@ namespace Chordette
         public byte[] ID { get; private set; }
         public INode SelfNode { get; set; }
 
+        public static long SentBytes { get; set; }
         public static long SentMessages { get; set; }
         public static long ReceivedMessages { get; set; }
 
@@ -154,6 +155,7 @@ namespace Chordette
                 if (task.IsCanceled)
                     return false;
 
+                SentBytes += message.Length;
                 SentMessages++;
                 LastMessage = DateTime.UtcNow;
                 return true;
