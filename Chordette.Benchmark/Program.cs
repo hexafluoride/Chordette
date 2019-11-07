@@ -6,7 +6,9 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 
-namespace Chordette
+using Chordette;
+
+namespace Chordette.Benchmark
 {
     class Program
     {
@@ -40,7 +42,7 @@ namespace Chordette
 
             var joined_nodes = new List<Node>() { n };
             var nodes_to_join = pool.Nodes.Where(node => !node.ID.SequenceEqual(n.ID)).ToList();
-            
+
             n.Stabilize();
             n.FixFingers();
 
@@ -63,14 +65,14 @@ namespace Chordette
 
             var sw = Stopwatch.StartNew();
 
-            while(iteration < (join_freq * (node_count + 1)))
+            while (iteration < (join_freq * (node_count + 1)))
             {
                 iteration++;
-                
+
                 // check if there is any input
                 if (Console.KeyAvailable)
                 {
-                    switch(Console.ReadKey(true).Key)
+                    switch (Console.ReadKey(true).Key)
                     {
                         case ConsoleKey.Spacebar:
                             heartbeat = 0;
@@ -98,13 +100,13 @@ namespace Chordette
                         Console.WriteLine($"Joining {node_to_join.ID.ToUsefulString()} through {connects_through.ID.ToUsefulString()}...");
                     }
 
-                        node_to_join.Stabilize();
-                        node_to_join.FixFingers();
-                        connects_through.Stabilize();
-                        connects_through.FixFingers();
+                    node_to_join.Stabilize();
+                    node_to_join.FixFingers();
+                    connects_through.Stabilize();
+                    connects_through.FixFingers();
 
-                        joined_nodes.Add(node_to_join);
-                        nodes_to_join.Remove(node_to_join);
+                    joined_nodes.Add(node_to_join);
+                    nodes_to_join.Remove(node_to_join);
                 }
 
                 // stabilize random node N
@@ -138,7 +140,7 @@ namespace Chordette
                     lookup_count++;
 
                     bool lookup_successful = successor_by_chord.SequenceEqual(successor_actual);
-                    
+
                     if (lookup_successful)
                     {
                         log.WriteLine($"{joined_nodes.Count},,{successor_query_time},{messages_sent},{bytes_sent}");
@@ -195,7 +197,7 @@ namespace Chordette
                     // update statistics display
                     Console.Title = $"{joined_nodes.Count} nodes, " +
                         $"{stabilize_count} stabilizations, " +
-                        $"{joined_nodes.Average(q => q.Nodes.Nodes.Skip(0).Count()):0.00} average connections per peer, " +
+                        $"{joined_nodes.Average(q => q.Peers.Nodes.Skip(0).Count()):0.00} average connections per peer, " +
                         $"{message_rate:N0} msg/s, " +
                         $"{data_rate:N0} byte/s, " +
                         $"{messages_per_lookup.Average():N0} msg/lookup, " +

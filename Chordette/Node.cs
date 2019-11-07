@@ -12,7 +12,7 @@ namespace Chordette
 {
     public class Node : INode
     {
-        internal Network Nodes { get; set; }
+        public Network Peers { get; set; }
 
         public static Random Random = new Random();
 
@@ -53,7 +53,7 @@ namespace Chordette
             Array.Copy(BitConverter.GetBytes((short)port), 0, ID, offset + 4, 2);
 
             Listener = new TcpListener(listen_addr, port);
-            Nodes = new Network(this, m);
+            Peers = new Network(this, m);
 
             Table = new FingerTable(m, this);
             Successor = Table[0].ID;
@@ -82,7 +82,7 @@ namespace Chordette
                     remote_node.Start();
                     Log($"Connected to {remote_node.ID.ToUsefulString()} on {incoming_socket.RemoteEndPoint}");
 
-                    Nodes.Add(remote_node);
+                    Peers.Add(remote_node);
                 }
                 catch (Exception ex)
                 {
@@ -126,7 +126,7 @@ namespace Chordette
                     break;
                 }
                 
-                n_prime = Nodes[next_n_prime_id];
+                n_prime = Peers[next_n_prime_id];
             }
 
             return n_prime.ID;
@@ -134,14 +134,14 @@ namespace Chordette
 
         public byte[] FindSuccessor(byte[] id)
         {
-            var n_prime = Nodes[FindPredecessor(id)];
+            var n_prime = Peers[FindPredecessor(id)];
             var succ = n_prime.Successor;
             return succ;
         }
 
         public byte[] ClosestPrecedingFinger(byte[] id)
         {
-            for (int i = Nodes.M - 1; i >= 0; i--)
+            for (int i = Peers.M - 1; i >= 0; i--)
             {
                 var finger_id = Table[i].ID;
 
@@ -156,7 +156,7 @@ namespace Chordette
         {
             if (id != null && id.Length != 0)
             {
-                var n_prime = Nodes[id];
+                var n_prime = Peers[id];
                 Predecessor = new byte[0];
 
                 var proposed_successor = new byte[0];
@@ -170,7 +170,7 @@ namespace Chordette
                 if(proposed_successor == null || proposed_successor.Length != id.Length)
                 {
                     Log($"Failed to join the network, exiting");
-                    Nodes.Clear();
+                    Peers.Clear();
                     return false;
                 }
 
@@ -188,14 +188,14 @@ namespace Chordette
 
         public void Stabilize()
         {
-            var x = Nodes[Successor]?.Predecessor;
+            var x = Peers[Successor]?.Predecessor;
 
             if (x?.IsIn(this.ID, Successor, start_inclusive: false, end_inclusive: false) == true)
             {
                 Successor = x;
             }
 
-            Nodes[Successor]?.Notify(this.ID);
+            Peers[Successor]?.Notify(this.ID);
         }
 
         public void Notify(byte[] id)
@@ -211,7 +211,7 @@ namespace Chordette
 
         public void FixFingers()
         {
-            var random_index = Random.Next(0, Nodes.M);
+            var random_index = Random.Next(0, Peers.M);
 
             //Log($"Fixing finger {random_index}...");
             var successor = FindSuccessor(Table[random_index].Start);
