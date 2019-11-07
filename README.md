@@ -7,7 +7,6 @@ Simplified implementation of the [Chord DHT model](https://pdos.csail.mit.edu/pa
 - [x] Actual networking
 - [ ] A higher layer to Chord, handling things like key handoff and abstraction of the `successor(hash(key)).{get, put}(hash(key))` chain
 - [ ] Data duplication
-- [ ] Virtual nodes
 
 ## Performance metrics
 The following metrics all scale with log(N) where N = peer count, matching the performance guarantees laid out in the [Chord whitepaper](https://pdos.csail.mit.edu/papers/chord:sigcomm01/chord_sigcomm.pdf), which corroborates the correctness of this implementation to some degree.
