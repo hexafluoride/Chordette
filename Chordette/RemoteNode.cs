@@ -23,12 +23,14 @@ namespace Chordette
 
     public class RemoteNodeMessageEventArgs : EventArgs
     {
+        public string Method { get; set; }
         public byte[] RequestID { get; set; }
         public byte[] Node { get; set; }
         public byte[] Parameter { get; set; }
 
-        public RemoteNodeMessageEventArgs(byte[] source, byte[] request_id, byte[] parameter)
+        public RemoteNodeMessageEventArgs(string method, byte[] source, byte[] request_id, byte[] parameter)
         {
+            Method = method;
             RequestID = request_id;
             Node = source;
             Parameter = parameter;
@@ -57,6 +59,7 @@ namespace Chordette
         private Dictionary<byte[], ManualResetEvent> Waiters = new Dictionary<byte[], ManualResetEvent>(new StructuralEqualityComparer());
         private Dictionary<byte[], byte[]> Replies = new Dictionary<byte[], byte[]>(new StructuralEqualityComparer());
 
+        public event RemoteNodeMessageHandler FallbackMessageHandler;
         private HandlerDictionary<string, RemoteNodeMessageHandler> MessageHandlers = new HandlerDictionary<string, RemoteNodeMessageHandler>();
         
         private Thread ReceiveThread { get; set; }
@@ -281,15 +284,23 @@ namespace Chordette
                         var method = Encoding.ASCII.GetString(binary.ReadBytes(method_len));
                         var param_len = binary.ReadInt32();
                         param_len = Math.Max(0, Math.Min(4096, param_len));
-
+                        
                         var parameter = binary.ReadBytes(param_len);
-                        var handlers = MessageHandlers[method];
+
+                        if (MessageHandlers.ContainsKey(method))
+                        {
+                            var handlers = MessageHandlers[method];
+
+                            handlers.ForEach(func => func(this, new RemoteNodeMessageEventArgs(method, ID, request_id, parameter)));
+                        }
+                        else
+                        {
+                            FallbackMessageHandler?.Invoke(this, new RemoteNodeMessageEventArgs(method, ID, request_id, parameter));
+                        }
 
                         Log($"received call to {method}(0x{request_id.ToUsefulString()}) with {param_len}-byte param {parameter.ToUsefulString()}");
                         ReceivedMessages++;
                         LastMessage = DateTime.UtcNow;
-
-                        handlers.ForEach(func => func(this, new RemoteNodeMessageEventArgs(ID, request_id, parameter)));
                     }
                     else if (message_type == 0xFD) // handle response
                     {

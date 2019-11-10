@@ -5,7 +5,7 @@ using System.Collections.Generic;
 namespace Chordette
 {
     [Serializable]
-    class StructuralEqualityComparer : IEqualityComparer, IEqualityComparer<object>
+    public class StructuralEqualityComparer : IEqualityComparer, IEqualityComparer<object>
     {
         public new bool Equals(object x, object y)
         {

@@ -22,12 +22,12 @@ namespace Chordette
 
         public byte[] ID { get; set; }
 
-        private TcpListener Listener { get; set; }
-        private Thread ListenerThread { get; set; }
+        protected TcpListener Listener { get; set; }
+        protected Thread ListenerThread { get; set; }
 
-        private bool Joined { get; set; }
+        protected internal bool Joined { get; set; }
 
-        private void Log(string msg)
+        protected void Log(string msg)
         {
 #if DEBUG
             lock (Extensions.GlobalPrintLock)
@@ -38,6 +38,8 @@ namespace Chordette
             }
 #endif
         }
+
+        protected Node() { }
 
         public Node(IPAddress listen_addr, int port, int m)
         {
@@ -50,7 +52,7 @@ namespace Chordette
             var offset = 0;
 
             Array.Copy(listen_addr.GetAddressBytes(), 0, ID, offset, 4);
-            Array.Copy(BitConverter.GetBytes((short)port), 0, ID, offset + 4, 2);
+            Array.Copy(BitConverter.GetBytes((ushort)port), 0, ID, offset + 4, 2);
 
             Listener = new TcpListener(listen_addr, port);
             Peers = new Network(this, m);
