@@ -98,6 +98,8 @@ namespace Chordette
             });
         }
 
+        public void AddMessageHandler(string msg, RemoteNodeMessageHandler handler) => MessageHandlers.Add(msg, handler);
+
         public void Start()
         {
             // TODO: Add timeouts to stop malicious peers from stalling us forever
@@ -166,7 +168,7 @@ namespace Chordette
             }
         }
 
-        private void Invoke(string method, byte[] parameter = default)
+        public void Invoke(string method, byte[] parameter = default)
         {
             parameter = parameter ?? new byte[0];
 
@@ -184,7 +186,7 @@ namespace Chordette
             }
         }
 
-        private byte[] Request(string method, byte[] parameter = default)
+        public byte[] Request(string method, byte[] parameter = default)
         {
             if (Disconnected)
                 return null;
@@ -243,7 +245,7 @@ namespace Chordette
             }
         }
 
-        private void Reply(byte[] request_id, byte[] result)
+        public void Reply(byte[] request_id, byte[] result)
         {
             result = result ?? new byte[0];
 
