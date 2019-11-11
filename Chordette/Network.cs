@@ -28,7 +28,7 @@ namespace Chordette
             CurrentPeers = 1;
         }
 
-        public INode Connect(byte[] id)
+        public virtual INode Connect(byte[] id)
         {
             // current Chordette peer ID coding:
             // 4 bytes IPv4 address
@@ -49,7 +49,7 @@ namespace Chordette
             return node;
         }
 
-        protected void HandleNodeDisconnect(object sender, RemoteNodeDisconnectingEventArgs e)
+        protected virtual void HandleNodeDisconnect(object sender, RemoteNodeDisconnectingEventArgs e)
         {
             var id = (sender as RemoteNode).ID;
             Remove(id);
@@ -79,7 +79,7 @@ namespace Chordette
                 Interlocked.Decrement(ref CurrentPeers);
         }
 
-        protected internal void Add(INode node)
+        protected internal virtual void Add(INode node)
         {
             if (CurrentPeers >= MaximumPeers)
             {

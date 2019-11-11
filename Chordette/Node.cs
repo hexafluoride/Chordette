@@ -71,7 +71,7 @@ namespace Chordette
             Log($"started listening on {Listener.LocalEndpoint}");
         }
 
-        private void ListenerLoop()
+        protected virtual void ListenerLoop()
         {
             while (true)
             {
@@ -159,6 +159,10 @@ namespace Chordette
             if (id != null && id.Length != 0)
             {
                 var n_prime = Peers[id];
+
+                if (n_prime == null)
+                    return false;
+
                 Predecessor = new byte[0];
 
                 var proposed_successor = new byte[0];
