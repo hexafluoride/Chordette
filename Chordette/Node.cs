@@ -129,6 +129,13 @@ namespace Chordette
                 }
                 
                 n_prime = Peers[next_n_prime_id];
+
+                if (n_prime == null)
+                {
+                    // TODO: figure out how to actually handle this
+                    Log("FindPredecessor has failed!");
+                    return id;
+                }
             }
 
             return n_prime.ID;
@@ -137,6 +144,10 @@ namespace Chordette
         public byte[] FindSuccessor(byte[] id)
         {
             var n_prime = Peers[FindPredecessor(id)];
+
+            if (n_prime == null)
+                return null;
+
             var succ = n_prime.Successor;
             return succ;
         }
