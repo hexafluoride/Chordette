@@ -18,6 +18,8 @@ namespace Chordette
         public int MaximumPeers { get; set; }
         private int CurrentPeers = 0;
 
+        protected internal Dictionary<byte[], int> UnreachableNodes = new Dictionary<byte[], int>(new StructuralEqualityComparer());
+        
         public Network(Node self, int m)
         {
             MaximumPeers = 8;
@@ -26,6 +28,15 @@ namespace Chordette
             Nodes = new ConcurrentDictionary<byte[], INode>(new StructuralEqualityComparer());
             Nodes[Self.ID] = Self;
             CurrentPeers = 1;
+        }
+
+        public bool IsReachable(byte[] id) => !UnreachableNodes.ContainsKey(id) || UnreachableNodes[id] == 0;
+        protected internal void MarkUnreachable(byte[] id)
+        {
+            if (!UnreachableNodes.ContainsKey(id))
+                UnreachableNodes[id] = 0;
+
+            UnreachableNodes[id]++;
         }
 
         public virtual INode Connect(byte[] id)
@@ -42,6 +53,12 @@ namespace Chordette
             var endpoint = new IPEndPoint(new IPAddress(ip_bytes), BitConverter.ToUInt16(port_bytes, 0));
             var node = Self.Connect(endpoint);
 
+            if (node == null)
+            {
+                MarkUnreachable(id);
+                return null;
+            }
+
             node.DisconnectEvent += HandleNodeDisconnect;
 
             Add(node);
@@ -53,6 +70,9 @@ namespace Chordette
         {
             var id = (sender as RemoteNode).ID;
             Remove(id);
+
+            if (e.LongTerm)
+                MarkUnreachable(id);
         }
 
         public void Clear()
@@ -71,6 +91,8 @@ namespace Chordette
 
             Nodes.Clear();
             Nodes[Self.ID] = Self;
+
+            UnreachableNodes.Clear();
         }
 
         private void Remove(byte[] id)

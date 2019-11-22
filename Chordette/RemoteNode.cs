@@ -2,9 +2,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Chordette
 {
@@ -13,10 +15,12 @@ namespace Chordette
 
     public class RemoteNodeDisconnectingEventArgs : EventArgs
     {
+        public bool LongTerm { get; set; }
         public bool OurRequest { get; set; }
 
-        public RemoteNodeDisconnectingEventArgs(bool our_request)
+        public RemoteNodeDisconnectingEventArgs(bool our_request, bool long_term)
         {
+            LongTerm = long_term;
             OurRequest = our_request;
         }
     }
@@ -41,8 +45,8 @@ namespace Chordette
     {
         public static Random Random = new Random();
 
-        public byte[] Successor { get => Request("get_successor"); }
-        public byte[] Predecessor { get => Request("get_predecessor"); }
+        public byte[] Successor { get => RequestCached("get_successor"); }
+        public byte[] Predecessor { get => RequestCached("get_predecessor"); }
         public byte[] ID { get; private set; }
         public INode SelfNode { get; set; }
 
@@ -69,7 +73,25 @@ namespace Chordette
         public bool Disconnected { get; set; }
         public event OnRemoteNodeDisconnect DisconnectEvent;
 
-        private void Log(string msg)
+        private Dictionary<string, byte[]> RequestCache = new Dictionary<string, byte[]>();
+        private Dictionary<string, DateTime> CacheTimes = new Dictionary<string, DateTime>();
+
+        private byte[] RequestCached(string method, int timeout = 5000)
+        {
+            var cache_invalid =
+                !RequestCache.ContainsKey(method) ||
+                (DateTime.UtcNow - CacheTimes[method]).TotalMilliseconds > timeout;
+
+            if (cache_invalid)
+            {
+                RequestCache[method] = Request(method);
+                CacheTimes[method] = DateTime.UtcNow;
+            }
+
+            return RequestCache[method];
+        }
+
+        protected void Log(string msg)
         {
 #if DEBUG
             lock (Extensions.GlobalPrintLock)
@@ -89,16 +111,21 @@ namespace Chordette
             SelfNode = self_node;
 
             MessageHandlers.Add("find_successor", (s, e) => { Reply(e.RequestID, SelfNode.FindSuccessor(e.Parameter)); });
-            MessageHandlers.Add("closest_preceding_finger", (s, e) => { Reply(e.RequestID, SelfNode.ClosestPrecedingFinger(e.Parameter)); });
+            MessageHandlers.Add("closest_preceding_finger", (s, e) => 
+            {
+                (var finger_number, var finger_id) = SelfNode.ClosestPrecedingFinger(e.Parameter);
+                Reply(e.RequestID, BitConverter.GetBytes(finger_number).Concat(finger_id).ToArray());
+            });
             MessageHandlers.Add("notify", (s, e) => { SelfNode.Notify(e.Parameter); });
             MessageHandlers.Add("get_successor", (s, e) => { Reply(e.RequestID, SelfNode.Successor); });
             MessageHandlers.Add("get_predecessor", (s, e) => { Reply(e.RequestID, SelfNode.Predecessor); });
             MessageHandlers.Add("get_id", (s, e) => { Reply(e.RequestID, SelfNode.ID); });
             MessageHandlers.Add("disconnect", (s, e) =>
             {
-                // ignore whether this is a temporary or permanent disconnect for now
-                Disconnect(false, false);
+                bool temporary = e.Parameter.Length > 0 ? e.Parameter[0] == 0 : false;
+                Disconnect(temporary, message: false);
             });
+            MessageHandlers.Add("ping", (s, e) => { Reply(e.RequestID, new byte[0]); });
         }
 
         public void AddMessageHandler(string msg, RemoteNodeMessageHandler handler) => MessageHandlers.Add(msg, handler);
@@ -133,6 +160,8 @@ namespace Chordette
                 Waiters.Clear();
                 Replies.Clear();
                 MessageHandlers.Clear();
+                CacheTimes.Clear();
+                RequestCache.Clear();
 
                 Log($"ending connection, temporary={temporary}, message={message}");
             }
@@ -142,7 +171,7 @@ namespace Chordette
             }
             finally
             { 
-                DisconnectEvent?.Invoke(this, new RemoteNodeDisconnectingEventArgs(message));
+                DisconnectEvent?.Invoke(this, new RemoteNodeDisconnectingEventArgs(message, !temporary));
             }
         }
 
@@ -291,14 +320,14 @@ namespace Chordette
                         {
                             var handlers = MessageHandlers[method];
 
-                            handlers.ForEach(func => func(this, new RemoteNodeMessageEventArgs(method, ID, request_id, parameter)));
+                            Task.Run(() => handlers.ForEach(func => func(this, new RemoteNodeMessageEventArgs(method, ID, request_id, parameter)))).ConfigureAwait(false);
                         }
                         else
                         {
-                            FallbackMessageHandler?.Invoke(this, new RemoteNodeMessageEventArgs(method, ID, request_id, parameter));
+                            Task.Run(() => FallbackMessageHandler?.Invoke(this, new RemoteNodeMessageEventArgs(method, ID, request_id, parameter))).ConfigureAwait(false);
                         }
 
-                        Log($"received call to {method}(0x{request_id.ToUsefulString()}) with {param_len}-byte param {parameter.ToUsefulString()}");
+                        Log($"received call to {method}(0x{request_id.ToUsefulString()}) with {param_len}-byte param {parameter.ToUsefulString()} (handler: {(MessageHandlers.ContainsKey(method) ? "YES" : "NO")})");
                         ReceivedMessages++;
                         LastMessage = DateTime.UtcNow;
                     }
@@ -338,9 +367,14 @@ namespace Chordette
             Log($"exiting ReceiveLoop");
         }
 
-        public byte[] ClosestPrecedingFinger(byte[] id)
+        public (int, byte[]) ClosestPrecedingFinger(byte[] id)
         {
-            return Request("closest_preceding_finger", id);
+            var resp = Request("closest_preceding_finger", id);
+
+            if (resp == null)
+                return (-1, default);
+
+            return (BitConverter.ToInt32(resp, 0), resp.Skip(4).ToArray());
         }
 
         public byte[] FindSuccessor(byte[] id)
@@ -352,5 +386,7 @@ namespace Chordette
         {
             Invoke("notify", id);
         }
+
+        public bool Ping() => Request("ping") != null;
     }
 }

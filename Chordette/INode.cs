@@ -11,7 +11,9 @@ namespace Chordette
         byte[] ID { get; }
 
         byte[] FindSuccessor(byte[] id);
-        byte[] ClosestPrecedingFinger(byte[] id);
+        (int, byte[]) ClosestPrecedingFinger(byte[] id);
         void Notify(byte[] id);
+
+        bool Ping();
     }
 }

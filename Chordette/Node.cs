@@ -17,10 +17,17 @@ namespace Chordette
         public static Random Random = new Random();
 
         public FingerTable Table { get; set; }
-        public byte[] Successor { get; set; }
-        public byte[] Predecessor { get; set; }
+
+        private byte[] _successor = default;
+        private byte[] _predecessor = default;
+
+        public byte[] Successor { get => _successor; set { SuccessorChanged?.Invoke(this, new SuccessorChangedEventArgs(Successor, value)); _successor = value; } }
+        public byte[] Predecessor { get => _predecessor; set { PredecessorChanged?.Invoke(this, new PredecessorChangedEventArgs(Predecessor, value)); _predecessor = value; } }
 
         public byte[] ID { get; set; }
+
+        public event PredecessorChangedEventHandler PredecessorChanged;
+        public event SuccessorChangedEventHandler SuccessorChanged;
 
         protected TcpListener Listener { get; set; }
         protected Thread ListenerThread { get; set; }
@@ -39,9 +46,19 @@ namespace Chordette
 #endif
         }
 
-        protected Node() { }
+        protected Node()
+        {
+            PredecessorChanged += (s, e) => { Log($"Predecessor changed " +
+                $"from {e.PreviousPredecessor.ToUsefulString(true)} " +
+                $"to {e.NewPredecessor.ToUsefulString(true)}"); };
+            
+            SuccessorChanged += (s, e) => { Log($"Successor changed " +
+                $"from {e.PreviousSuccessor.ToUsefulString(true)} " +
+                $"to {e.NewSuccessor.ToUsefulString(true)}"); };
+        }
 
-        public Node(IPAddress listen_addr, int port, int m)
+        public Node(IPAddress listen_addr, int port, int m) :
+            this()
         {
             ID = new byte[m / 8];
             Random.NextBytes(ID);
@@ -100,17 +117,27 @@ namespace Chordette
             }
         }
 
-        public RemoteNode Connect(IPEndPoint ep)
+        public virtual RemoteNode Connect(IPEndPoint ep)
         {
             Log($"Connecting to {ep}...");
 
-            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-            socket.Connect(ep);
+            try
+            {
+                var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+                socket.Connect(ep);
 
-            var remote_node = new RemoteNode(this, socket);
-            remote_node.Start();
+                var remote_node = new RemoteNode(this, socket);
+                remote_node.Start();
 
-            return remote_node;
+                if (remote_node.Disconnected)
+                    return null;
+
+                return remote_node;
+            }
+            catch (Exception ex)
+            {
+                return null;
+            }
         }
 
         public byte[] FindPredecessor(byte[] id)
@@ -119,7 +146,7 @@ namespace Chordette
 
             while (id.IsNotIn(n_prime.ID, n_prime.Successor, start_inclusive: false))
             {
-                var next_n_prime_id = n_prime.ClosestPrecedingFinger(id);
+                (var finger_id, var next_n_prime_id) = n_prime.ClosestPrecedingFinger(id);
 
                 if (next_n_prime_id == null || next_n_prime_id.SequenceEqual(n_prime.ID))
                 {
@@ -152,17 +179,20 @@ namespace Chordette
             return succ;
         }
 
-        public byte[] ClosestPrecedingFinger(byte[] id)
+        public (int, byte[]) ClosestPrecedingFinger(byte[] id)
         {
             for (int i = Peers.M - 1; i >= 0; i--)
             {
                 var finger_id = Table[i].ID;
 
+                if (!Peers.IsReachable(finger_id))
+                    continue;
+
                 if (finger_id.IsIn(this.ID, id, start_inclusive: false, end_inclusive: false)) // questionable
-                    return finger_id;
+                    return (i, finger_id);
             }
 
-            return this.ID;
+            return (0, this.ID);
         }
 
         public bool Join(byte[] id)
@@ -205,7 +235,33 @@ namespace Chordette
 
         public void Stabilize()
         {
-            var x = Peers[Successor]?.Predecessor;
+            var successor_peer = Peers[Successor];
+            
+            if (successor_peer == null)
+            {
+                Log($"Unreachable successor, trying to find a new one");
+                Successor = ID;
+
+                var peers_ordered_by_chord_dist = Peers
+                    .Select(Node => (Node, NodeHelpers.Distance(ID, Node.ID, Peers.M)))
+                    .OrderByDescending(tuple => tuple.Item2)
+                    .Select(tuple => tuple.Node)
+                    .ToList(); // stop complaints about Peers being modified
+
+                foreach (var peer in peers_ordered_by_chord_dist)
+                {
+                    if (peer.Ping())
+                    {
+                        Log($"Found alternative successor {peer.ID.ToUsefulString(true)} by second method");
+                        successor_peer = peer;
+                        break;
+                    }
+                    else
+                        (peer as RemoteNode).Disconnect(false);
+                }
+            }
+
+            var x = successor_peer?.Predecessor;
 
             if (x?.IsIn(this.ID, Successor, start_inclusive: false, end_inclusive: false) == true)
             {
@@ -217,30 +273,51 @@ namespace Chordette
 
         public void Notify(byte[] id)
         {
-            if (Predecessor == null || Predecessor.Length == 0 || 
-                Predecessor.SequenceEqual(ID) || 
+            if (Predecessor == null || Predecessor.Length == 0 ||
+                !Peers.IsReachable(Predecessor) ||
+                Peers[Predecessor]?.Ping() != true ||
+                Predecessor.SequenceEqual(ID) ||
                 id.IsIn(Predecessor, this.ID, start_inclusive: false, end_inclusive: false))
             {
-                Log($"New predecessor: {id.ToUsefulString()}");
                 Predecessor = id;
             }
+            else
+                Log($"Rejected notification from {id.ToUsefulString(true)} (current predecessor: {Predecessor.ToUsefulString(true)})");
         }
 
         public void FixFingers()
         {
-            var random_index = Random.Next(0, Peers.M);
+            for (int i = 0; i < Peers.M; i++)
+            {
+                var entry = Table[i];
+                var id = entry.ID;
 
-            //Log($"Fixing finger {random_index}...");
-            var successor = FindSuccessor(Table[random_index].Start);
+                if (Peers.UnreachableNodes.ContainsKey(id) &&
+                    Peers.UnreachableNodes[id] > 0)
+                {
+                    Log($"Fixing unreachable finger {i} with ID {id.ToUsefulString(true)}");
+                    FixFinger(i);
+                }
+            }
+
+            FixRandomFinger();
+        }
+
+        public void FixFinger(int finger_id)
+        {
+            var successor = FindSuccessor(Table[finger_id].Start);
 
             if (successor != null && successor.Length > 0)
             {
-                Table[random_index].ID = successor;
-                //Log($"Finger {random_index} is now {Table[random_index]}");
+                Table[finger_id].ID = successor;
             }
             else
-                Log($"Couldn't fix finger {random_index}, successor(n) returned nothing");
+                Log($"Couldn't fix finger {finger_id}, successor(n) returned nothing");
         }
+
+        public void FixRandomFinger() => FixFinger(Random.Next(0, Peers.M));
+
+        public bool Ping() => true; // local node is always reachable
 
         public override string ToString()
         {
@@ -285,5 +362,32 @@ namespace Chordette
         //    }
         //}
         #endregion
+    }
+
+    public delegate void PredecessorChangedEventHandler(object sender, PredecessorChangedEventArgs e);
+    public delegate void SuccessorChangedEventHandler(object sender, SuccessorChangedEventArgs e);
+
+    public class PredecessorChangedEventArgs : EventArgs
+    {
+        public byte[] PreviousPredecessor { get; set; }
+        public byte[] NewPredecessor { get; set; }
+
+        public PredecessorChangedEventArgs(byte[] previous_predecessor, byte[] new_predecessor)
+        {
+            PreviousPredecessor = previous_predecessor;
+            NewPredecessor = new_predecessor;
+        }
+    }
+
+    public class SuccessorChangedEventArgs : EventArgs
+    {
+        public byte[] PreviousSuccessor { get; set; }
+        public byte[] NewSuccessor { get; set; }
+
+        public SuccessorChangedEventArgs(byte[] previous_successor, byte[] new_successor)
+        {
+            PreviousSuccessor = previous_successor;
+            NewSuccessor = new_successor;
+        }
     }
 }
