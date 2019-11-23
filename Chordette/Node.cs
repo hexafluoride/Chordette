@@ -279,7 +279,7 @@ namespace Chordette
 
         public void Notify(byte[] id)
         {
-            if (Predecessor.SequenceEqual(ID) ||
+            if (Predecessor?.SequenceEqual(ID) == true ||
                 !Peers.IsReachable(Predecessor) ||
                 id.IsIn(Predecessor, this.ID, start_inclusive: false, end_inclusive: false))
             {

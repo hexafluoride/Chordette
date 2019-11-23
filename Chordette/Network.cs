@@ -38,10 +38,10 @@ namespace Chordette
             if (UnreachableNodes.ContainsKey(id) && UnreachableNodes[id] > 0)
                 return false;
 
-            if (Nodes[id] == null)
+            if (this[id] == null)
                 return false;
 
-            if (!Nodes[id].Ping())
+            if (!this[id].Ping())
                 return false;
 
             return true;

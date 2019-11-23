@@ -387,6 +387,20 @@ namespace Chordette
             Invoke("notify", id);
         }
 
-        public bool Ping() => Request("ping") != null;
+        private DateTime LastSuccessfulPing = DateTime.MinValue;
+        private TimeSpan PingCacheTime = TimeSpan.FromSeconds(1);
+
+        public bool Ping()
+        {
+            if ((DateTime.UtcNow - PingCacheTime) < LastSuccessfulPing)
+                return true;
+
+            var ping_successful = Request("ping") != null;
+
+            if (ping_successful)
+                LastSuccessfulPing = DateTime.UtcNow;
+
+            return ping_successful;
+        }
     }
 }
