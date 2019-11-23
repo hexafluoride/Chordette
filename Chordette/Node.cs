@@ -237,7 +237,7 @@ namespace Chordette
         {
             var successor_peer = Peers[Successor];
             
-            if (successor_peer == null)
+            if (successor_peer == null || !Peers.IsReachable(Successor) || !successor_peer.Ping())
             {
                 Log($"Unreachable successor, trying to find a new one");
                 Successor = ID;
@@ -263,7 +263,8 @@ namespace Chordette
 
             var x = successor_peer?.Predecessor;
 
-            if (x?.IsIn(this.ID, Successor, start_inclusive: false, end_inclusive: false) == true)
+            if (x?.IsIn(this.ID, Successor, start_inclusive: false, end_inclusive: false) == true &&
+                Peers[x] != null && Peers.IsReachable(x) && Peers[x].Ping())
             {
                 Successor = x;
             }
