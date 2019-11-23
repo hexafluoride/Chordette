@@ -30,7 +30,20 @@ namespace Chordette
             CurrentPeers = 1;
         }
 
-        public bool IsReachable(byte[] id) => !UnreachableNodes.ContainsKey(id) || UnreachableNodes[id] == 0;
+        public bool IsReachable(byte[] id)
+        {
+            if (UnreachableNodes.ContainsKey(id) && UnreachableNodes[id] > 0)
+                return false;
+
+            if (Nodes[id] == null)
+                return false;
+
+            if (!Nodes[id].Ping())
+                return false;
+
+            return true;
+        }
+
         protected internal void MarkUnreachable(byte[] id)
         {
             if (!UnreachableNodes.ContainsKey(id))
