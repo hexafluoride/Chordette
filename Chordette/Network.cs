@@ -32,6 +32,9 @@ namespace Chordette
 
         public bool IsReachable(byte[] id)
         {
+            if (id == null || id.Length != M / 8)
+                return false;
+
             if (UnreachableNodes.ContainsKey(id) && UnreachableNodes[id] > 0)
                 return false;
 
