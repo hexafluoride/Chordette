@@ -243,10 +243,15 @@ namespace Chordette
                 Successor = ID;
 
                 var peers_ordered_by_chord_dist = Peers
+                    .Where(p => !p.ID.SequenceEqual(ID))
                     .Select(Node => (Node, NodeHelpers.Distance(ID, Node.ID, Peers.M)))
-                    .OrderByDescending(tuple => tuple.Item2)
+                    .OrderBy(tuple => tuple.Item2)
                     .Select(tuple => tuple.Node)
                     .ToList(); // stop complaints about Peers being modified
+
+                var list = (string.Join(", ", peers_ordered_by_chord_dist.Select(n => $"{n.ID.ToUsefulString(true)}:{BigInteger.Log(NodeHelpers.Distance(ID, n.ID, Peers.M)):0.00}")));
+
+                Log($"distance-ordered peer list: [{list}]");
 
                 foreach (var peer in peers_ordered_by_chord_dist)
                 {
@@ -254,6 +259,7 @@ namespace Chordette
                     {
                         Log($"Found alternative successor {peer.ID.ToUsefulString(true)} by second method");
                         successor_peer = peer;
+                        Successor = peer.ID;
                         break;
                     }
                     else
