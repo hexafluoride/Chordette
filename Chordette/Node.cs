@@ -155,14 +155,14 @@ namespace Chordette
                     break;
                 }
                 
-                n_prime = Peers[next_n_prime_id];
-
-                if (n_prime == null)
+                if (!Peers.IsReachable(next_n_prime_id))
                 {
                     // TODO: figure out how to actually handle this
                     Log("FindPredecessor has failed!");
                     return id;
                 }
+
+                n_prime = Peers[next_n_prime_id];
             }
 
             return n_prime.ID;
@@ -237,7 +237,7 @@ namespace Chordette
         {
             var successor_peer = Peers[Successor];
             
-            if (successor_peer == null || !Peers.IsReachable(Successor) || !successor_peer.Ping())
+            if (!Peers.IsReachable(Successor))
             {
                 Log($"Unreachable successor, trying to find a new one");
                 Successor = ID;
@@ -255,7 +255,7 @@ namespace Chordette
 
                 foreach (var peer in peers_ordered_by_chord_dist)
                 {
-                    if (peer.Ping())
+                    if (Peers.IsReachable(peer.ID))
                     {
                         Log($"Found alternative successor {peer.ID.ToUsefulString(true)} by second method");
                         successor_peer = peer;
@@ -269,8 +269,7 @@ namespace Chordette
 
             var x = successor_peer?.Predecessor;
 
-            if (x?.IsIn(this.ID, Successor, start_inclusive: false, end_inclusive: false) == true &&
-                Peers[x] != null && Peers.IsReachable(x) && Peers[x].Ping())
+            if (x?.IsIn(this.ID, Successor, start_inclusive: false, end_inclusive: false) == true && Peers.IsReachable(x))
             {
                 Successor = x;
             }
@@ -280,10 +279,8 @@ namespace Chordette
 
         public void Notify(byte[] id)
         {
-            if (Predecessor == null || Predecessor.Length == 0 ||
+            if (Predecessor.SequenceEqual(ID) ||
                 !Peers.IsReachable(Predecessor) ||
-                Peers[Predecessor]?.Ping() != true ||
-                Predecessor.SequenceEqual(ID) ||
                 id.IsIn(Predecessor, this.ID, start_inclusive: false, end_inclusive: false))
             {
                 Predecessor = id;
@@ -299,8 +296,7 @@ namespace Chordette
                 var entry = Table[i];
                 var id = entry.ID;
 
-                if (Peers.UnreachableNodes.ContainsKey(id) &&
-                    Peers.UnreachableNodes[id] > 0)
+                if (!Peers.IsReachable(id))
                 {
                     Log($"Fixing unreachable finger {i} with ID {id.ToUsefulString(true)}");
                     FixFinger(i);
