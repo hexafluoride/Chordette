@@ -6,6 +6,8 @@ namespace Chordette
 {
     public interface INode
     {
+        int KeySize { get; }
+
         byte[] Successor { get; }
         byte[] Predecessor { get; }
         byte[] ID { get; }

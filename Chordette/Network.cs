@@ -11,13 +11,17 @@ namespace Chordette
 {
     public class Network : IEnumerable<INode>
     {
+        public int KeySize => M / 8;
         public int M { get; set; }
         public ConcurrentDictionary<byte[], INode> Nodes { get; set; }
         public Node Self { get; set; }
 
         public int MaximumPeers { get; set; }
+        public int PeerCount => CurrentPeers;
+
         private int CurrentPeers = 0;
 
+        protected internal HashSet<byte[]> CandidatePeers = new HashSet<byte[]>();
         protected internal Dictionary<byte[], int> UnreachableNodes = new Dictionary<byte[], int>(new StructuralEqualityComparer());
         
         public Network(Node self, int m)
@@ -27,16 +31,43 @@ namespace Chordette
             M = m;
             Nodes = new ConcurrentDictionary<byte[], INode>(new StructuralEqualityComparer());
             Nodes[Self.ID] = Self;
-            CurrentPeers = 1;
         }
 
-        public bool IsReachable(byte[] id)
+        public IEnumerable<byte[]> GetCandidatePeers()
         {
-            if (id == null || id.Length != M / 8)
+            var valid = CandidatePeers
+                .Where(id => IsReachable(id, strong_check: false))
+                .Where(id => !Nodes.ContainsKey(id));
+
+            return valid;
+        }
+
+        protected internal int CommitCandidatePeers(params byte[][] ids)
+        {
+            int added = 0;
+
+            foreach (var id in ids)
+            {
+                if (!IsReachable(id, strong_check: false))
+                    continue;
+
+                if (CandidatePeers.Add(id))
+                    added++;
+            }
+
+            return added;
+        }
+
+        public bool IsReachable(byte[] id, bool strong_check = true)
+        {
+            if (id == null || id.Length != KeySize)
                 return false;
 
             if (UnreachableNodes.ContainsKey(id) && UnreachableNodes[id] > 0)
                 return false;
+
+            if (!strong_check)
+                return true;
 
             if (this[id] == null)
                 return false;
@@ -47,13 +78,15 @@ namespace Chordette
             return true;
         }
 
-        protected internal void MarkUnreachable(byte[] id)
+        public void MarkUnreachable(byte[] id)
         {
             if (!UnreachableNodes.ContainsKey(id))
                 UnreachableNodes[id] = 0;
 
             UnreachableNodes[id]++;
         }
+
+        public void MarkReachable(byte[] id) => UnreachableNodes[id] = 0;
 
         public virtual INode Connect(byte[] id)
         {
@@ -122,13 +155,13 @@ namespace Chordette
             if (CurrentPeers >= MaximumPeers)
             {
                 // purge disconnected peers
-                foreach (var dead_node in Nodes.Values.Where(n => n is RemoteNode).Cast<RemoteNode>().Where(remote_node => remote_node.Disconnected))
+                foreach (var dead_node in Nodes.Values.OfType<RemoteNode>().Where(remote_node => remote_node.Disconnected))
                     Remove(dead_node.ID);
             }
 
             if (CurrentPeers >= MaximumPeers) // if we STILL need to purge peers
             { 
-                var oldest_connection = Nodes.Values.Where(n => n is RemoteNode).Cast<RemoteNode>().OrderByDescending(n => DateTime.UtcNow - n.ConnectionTime).FirstOrDefault();
+                var oldest_connection = Nodes.Values.OfType<RemoteNode>().OrderByDescending(n => DateTime.UtcNow - n.ConnectionTime).FirstOrDefault();
                 oldest_connection.Disconnect(true); // we're only temporarily disconnecting
                 Remove(oldest_connection.ID);
             }
@@ -137,10 +170,13 @@ namespace Chordette
                 Interlocked.Increment(ref CurrentPeers);
 
             Nodes[node.ID] = node;
+
+            if (node.Ping())
+                MarkReachable(node.ID);
         }
 
         public INode this[byte[] id] =>
-            (id != null && id.Length == M / 8) ? (Nodes.ContainsKey(id) ? Nodes[id] : Connect(id)) : default;
+            (id != null && id.Length == KeySize) ? (Nodes.ContainsKey(id) ? Nodes[id] : Connect(id)) : default;
 
         public IEnumerator<INode> GetEnumerator() => Nodes.Values.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => Nodes.Values.GetEnumerator();

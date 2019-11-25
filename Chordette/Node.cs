@@ -12,7 +12,8 @@ namespace Chordette
 {
     public class Node : INode
     {
-        public Network Peers { get; set; }
+        public int KeySize { get; set; }
+        public Network Network { get; set; }
 
         public static Random Random = new Random();
 
@@ -28,6 +29,8 @@ namespace Chordette
 
         public event PredecessorChangedEventHandler PredecessorChanged;
         public event SuccessorChangedEventHandler SuccessorChanged;
+
+        public IPEndPoint ListenEndPoint => (IPEndPoint)Listener?.LocalEndpoint;
 
         protected TcpListener Listener { get; set; }
         protected Thread ListenerThread { get; set; }
@@ -60,7 +63,8 @@ namespace Chordette
         public Node(IPAddress listen_addr, int port, int m) :
             this()
         {
-            ID = new byte[m / 8];
+            KeySize = m / 8;
+            ID = new byte[KeySize];
             Random.NextBytes(ID);
 
             // current Chordette peer ID coding:
@@ -72,7 +76,7 @@ namespace Chordette
             Array.Copy(BitConverter.GetBytes((ushort)port), 0, ID, offset + 4, 2);
 
             Listener = new TcpListener(listen_addr, port);
-            Peers = new Network(this, m);
+            Network = new Network(this, m);
 
             Table = new FingerTable(m, this);
             Successor = Table[0].ID;
@@ -101,7 +105,7 @@ namespace Chordette
                     remote_node.Start();
                     Log($"Connected to {remote_node.ID.ToUsefulString()} on {incoming_socket.RemoteEndPoint}");
 
-                    Peers.Add(remote_node);
+                    Network.Add(remote_node);
                 }
                 catch (Exception ex)
                 {
@@ -115,6 +119,24 @@ namespace Chordette
                     catch { }
                 }
             }
+        }
+        
+        public void AskForPeers(byte[] id) => AskForPeers(Network[id] as RemoteNode);
+        public int AskForPeers(RemoteNode node)
+        {
+            if (node == null)
+                return 0;
+
+            var peers = node.GetCandidatePeers();
+            var usable_peers = Network.CommitCandidatePeers(peers);
+            Log($"Received {usable_peers} usable peers out of {peers.GetLength(0)} suggested peers from {node.ID.ToUsefulString(true)}");
+
+            return usable_peers;
+        }
+
+        public IEnumerable<byte[]> BootstrapSelf(int max = 4)
+        {
+            return Network.GetCandidatePeers().Take(max).Where(id => Network.Connect(id) != null).ToList();
         }
 
         public virtual RemoteNode Connect(IPEndPoint ep)
@@ -155,14 +177,14 @@ namespace Chordette
                     break;
                 }
                 
-                if (!Peers.IsReachable(next_n_prime_id))
+                if (!Network.IsReachable(next_n_prime_id))
                 {
                     // TODO: figure out how to actually handle this
                     Log("FindPredecessor has failed!");
                     return id;
                 }
 
-                n_prime = Peers[next_n_prime_id];
+                n_prime = Network[next_n_prime_id];
             }
 
             return n_prime.ID;
@@ -170,7 +192,7 @@ namespace Chordette
 
         public byte[] FindSuccessor(byte[] id)
         {
-            var n_prime = Peers[FindPredecessor(id)];
+            var n_prime = Network[FindPredecessor(id)];
 
             if (n_prime == null)
                 return null;
@@ -181,11 +203,11 @@ namespace Chordette
 
         public (int, byte[]) ClosestPrecedingFinger(byte[] id)
         {
-            for (int i = Peers.M - 1; i >= 0; i--)
+            for (int i = Network.M - 1; i >= 0; i--)
             {
                 var finger_id = Table[i].ID;
 
-                if (!Peers.IsReachable(finger_id))
+                if (!Network.IsReachable(finger_id))
                     continue;
 
                 if (finger_id.IsIn(this.ID, id, start_inclusive: false, end_inclusive: false)) // questionable
@@ -199,7 +221,7 @@ namespace Chordette
         {
             if (id != null && id.Length != 0)
             {
-                var n_prime = Peers[id];
+                var n_prime = Network[id];
 
                 if (n_prime == null)
                     return false;
@@ -217,7 +239,7 @@ namespace Chordette
                 if(proposed_successor == null || proposed_successor.Length != id.Length)
                 {
                     Log($"Failed to join the network, exiting");
-                    Peers.Clear();
+                    Network.Clear();
                     return false;
                 }
 
@@ -235,27 +257,27 @@ namespace Chordette
 
         public void Stabilize()
         {
-            var successor_peer = Peers[Successor];
+            var successor_peer = Network[Successor];
             
-            if (!Peers.IsReachable(Successor))
+            if (!Network.IsReachable(Successor))
             {
                 Log($"Unreachable successor, trying to find a new one");
                 Successor = ID;
 
-                var peers_ordered_by_chord_dist = Peers
+                var peers_ordered_by_chord_dist = Network
                     .Where(p => !p.ID.SequenceEqual(ID))
-                    .Select(Node => (Node, NodeHelpers.Distance(ID, Node.ID, Peers.M)))
+                    .Select(Node => (Node, NodeHelpers.Distance(ID, Node.ID, Network.M)))
                     .OrderBy(tuple => tuple.Item2)
                     .Select(tuple => tuple.Node)
                     .ToList(); // stop complaints about Peers being modified
 
-                var list = (string.Join(", ", peers_ordered_by_chord_dist.Select(n => $"{n.ID.ToUsefulString(true)}:{BigInteger.Log(NodeHelpers.Distance(ID, n.ID, Peers.M)):0.00}")));
+                var list = (string.Join(", ", peers_ordered_by_chord_dist.Select(n => $"{n.ID.ToUsefulString(true)}:{BigInteger.Log(NodeHelpers.Distance(ID, n.ID, Network.M)):0.00}")));
 
                 Log($"distance-ordered peer list: [{list}]");
 
                 foreach (var peer in peers_ordered_by_chord_dist)
                 {
-                    if (Peers.IsReachable(peer.ID))
+                    if (Network.IsReachable(peer.ID))
                     {
                         Log($"Found alternative successor {peer.ID.ToUsefulString(true)} by second method");
                         successor_peer = peer;
@@ -269,18 +291,18 @@ namespace Chordette
 
             var x = successor_peer?.Predecessor;
 
-            if (x?.IsIn(this.ID, Successor, start_inclusive: false, end_inclusive: false) == true && Peers.IsReachable(x))
+            if (x?.IsIn(this.ID, Successor, start_inclusive: false, end_inclusive: false) == true && Network.IsReachable(x))
             {
                 Successor = x;
             }
 
-            Peers[Successor]?.Notify(this.ID);
+            Network[Successor]?.Notify(this.ID);
         }
 
         public void Notify(byte[] id)
         {
             if (Predecessor?.SequenceEqual(ID) == true ||
-                !Peers.IsReachable(Predecessor) ||
+                !Network.IsReachable(Predecessor) ||
                 id.IsIn(Predecessor, this.ID, start_inclusive: false, end_inclusive: false))
             {
                 Predecessor = id;
@@ -291,12 +313,12 @@ namespace Chordette
 
         public void FixFingers()
         {
-            for (int i = 0; i < Peers.M; i++)
+            for (int i = 0; i < Network.M; i++)
             {
                 var entry = Table[i];
                 var id = entry.ID;
 
-                if (!Peers.IsReachable(id))
+                if (!Network.IsReachable(id))
                 {
                     Log($"Fixing unreachable finger {i} with ID {id.ToUsefulString(true)}");
                     FixFinger(i);
@@ -318,7 +340,7 @@ namespace Chordette
                 Log($"Couldn't fix finger {finger_id}, successor(n) returned nothing");
         }
 
-        public void FixRandomFinger() => FixFinger(Random.Next(0, Peers.M));
+        public void FixRandomFinger() => FixFinger(Random.Next(0, Network.M));
 
         public bool Ping() => true; // local node is always reachable
 

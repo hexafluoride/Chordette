@@ -43,6 +43,7 @@ namespace Chordette
 
     public class RemoteNode : INode
     {
+        public int KeySize => SelfNode?.KeySize ?? 0;
         public static Random Random = new Random();
 
         public byte[] Successor { get => RequestCached("get_successor"); }
@@ -126,6 +127,24 @@ namespace Chordette
                 Disconnect(temporary, message: false);
             });
             MessageHandlers.Add("ping", (s, e) => { Reply(e.RequestID, new byte[0]); });
+            MessageHandlers.Add("get_peers", (s, e) => 
+            {
+                int max = Math.Min(16, e.Parameter.Length == 0 ? int.MaxValue : e.Parameter[0]);
+                var network = (SelfNode as Node).Network;
+
+                var all_peers = network.Nodes;
+                var some_peers = all_peers.ShuffleIterator(Random).Take(max).Select(peer => peer.Key).ToList();
+                var id_len = KeySize;
+                var blob_len = some_peers.Count * id_len;
+                var blob = new byte[blob_len];
+
+                for (int i = 0; i < some_peers.Count; i++)
+                {
+                    Array.Copy(some_peers[i], 0, blob, i * id_len, id_len);
+                }
+
+                Reply(e.RequestID, blob);
+            });
         }
 
         public void AddMessageHandler(string msg, RemoteNodeMessageHandler handler) => MessageHandlers.Add(msg, handler);
@@ -275,6 +294,23 @@ namespace Chordette
             {
                 return null;
             }
+        }
+
+        public byte[][] GetCandidatePeers(int max = 16)
+        {
+            var blob = Request("get_peers", new byte[] { (byte)max });
+            var id_len = (SelfNode as Node).KeySize;
+            var id_count = blob.Length / id_len;
+
+            var ret = new byte[id_count][];
+
+            for (int i = 0; i < id_count; i++)
+            {
+                ret[i] = new byte[id_len];
+                Array.Copy(blob, i * id_len, ret[i], 0, id_len);
+            }
+
+            return ret;
         }
 
         public void Reply(byte[] request_id, byte[] result)
