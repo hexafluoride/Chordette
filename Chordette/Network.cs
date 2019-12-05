@@ -36,7 +36,7 @@ namespace Chordette
         public IEnumerable<byte[]> GetCandidatePeers()
         {
             var valid = CandidatePeers
-                .Where(id => IsReachable(id, strong_check: false))
+                /*.Where(id => IsReachable(id, strong_check: false))*/
                 .Where(id => !Nodes.ContainsKey(id));
 
             return valid;

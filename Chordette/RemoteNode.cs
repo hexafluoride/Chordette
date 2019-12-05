@@ -204,11 +204,14 @@ namespace Chordette
 
             try
             {
-                var task = Connection.SendAsync(message, SocketFlags.None);
-                task.Wait(DisconnectCanceller.Token);
+                lock (Connection)
+                {
+                    var task = Connection.SendAsync(message, SocketFlags.None);
+                    task.Wait(DisconnectCanceller.Token);
 
-                if (task.IsCanceled)
-                    return false;
+                    if (task.IsCanceled)
+                        return false;
+                }
 
                 SentBytes += message.Length;
                 SentMessages++;
