@@ -64,6 +64,7 @@ namespace Chordette
             this()
         {
             KeySize = m / 8;
+
             ID = new byte[KeySize];
             Random.NextBytes(ID);
 
@@ -296,10 +297,10 @@ namespace Chordette
                 Successor = x;
             }
 
-            Network[Successor]?.Notify(this.ID);
+            Network[Successor]?.NotifyForwards(this.ID);
         }
 
-        public void Notify(byte[] id)
+        public void NotifyForwards(byte[] id)
         {
             if (Predecessor?.SequenceEqual(ID) == true ||
                 !Network.IsReachable(Predecessor) ||
@@ -308,7 +309,49 @@ namespace Chordette
                 Predecessor = id;
             }
             else
-                Log($"Rejected notification from {id.ToUsefulString(true)} (current predecessor: {Predecessor.ToUsefulString(true)})");
+            {
+                if (id != null && Predecessor != null)
+                {
+                    if (!Predecessor.SequenceEqual(id))
+                    {
+                        Log($"Rejected forwards notification from {id.ToUsefulString(true)} (current predecessor: {Predecessor.ToUsefulString(true)})");
+
+                        var peer = Network[id];
+
+                        if (peer != null)
+                        {
+                            //peer.NotifyBackwards(Predecessor);
+                        }
+                    }
+                }
+            }
+        }
+
+        public void NotifyBackwards(byte[] id)
+        {
+            if (Successor?.SequenceEqual(ID) == true ||
+                !Network.IsReachable(Successor) ||
+                id.IsIn(this.ID, Successor, start_inclusive: false, end_inclusive: false))
+            {
+                Successor = id;
+            }
+            else
+            {
+                if (id != null && Successor != null)
+                {
+                    if (!Successor.SequenceEqual(id))
+                    {
+                        Log($"Rejected backwards notification from {id.ToUsefulString(true)} (current successor: {Successor.ToUsefulString(true)})");
+
+                        var peer = Network[id];
+
+                        if (peer != null)
+                        {
+                            peer.NotifyForwards(Predecessor);
+                        }
+                    }
+                }
+            }
         }
 
         public void FixFingers()

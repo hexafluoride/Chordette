@@ -117,7 +117,8 @@ namespace Chordette
                 (var finger_number, var finger_id) = SelfNode.ClosestPrecedingFinger(e.Parameter);
                 Reply(e.RequestID, BitConverter.GetBytes(finger_number).Concat(finger_id).ToArray());
             });
-            MessageHandlers.Add("notify", (s, e) => { SelfNode.Notify(e.Parameter); });
+            MessageHandlers.Add("notify_forwards", (s, e) => { SelfNode.NotifyForwards(e.Parameter); });
+            MessageHandlers.Add("notify_backwards", (s, e) => { SelfNode.NotifyBackwards(e.Parameter); });
             MessageHandlers.Add("get_successor", (s, e) => { Reply(e.RequestID, SelfNode.Successor); });
             MessageHandlers.Add("get_predecessor", (s, e) => { Reply(e.RequestID, SelfNode.Predecessor); });
             MessageHandlers.Add("get_id", (s, e) => { Reply(e.RequestID, SelfNode.ID); });
@@ -418,9 +419,14 @@ namespace Chordette
             return Request("find_successor", id);
         }
 
-        public void Notify(byte[] id)
+        public void NotifyForwards(byte[] id)
         {
-            Invoke("notify", id);
+            Invoke("notify_forwards", id);
+        }
+
+        public void NotifyBackwards(byte[] id)
+        {
+            Invoke("notify_backwards", id);
         }
 
         private DateTime LastSuccessfulPing = DateTime.MinValue;
