@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -60,9 +61,9 @@ namespace Chordette
 
         public Socket Connection { get; set; }
 
-        private Dictionary<byte[], string> Methods = new Dictionary<byte[], string>(new StructuralEqualityComparer()); // used for debugging purposes only
-        private Dictionary<byte[], ManualResetEvent> Waiters = new Dictionary<byte[], ManualResetEvent>(new StructuralEqualityComparer());
-        private Dictionary<byte[], byte[]> Replies = new Dictionary<byte[], byte[]>(new StructuralEqualityComparer());
+        private ConcurrentDictionary<byte[], string> Methods = new ConcurrentDictionary<byte[], string>(new StructuralEqualityComparer()); // used for debugging purposes only
+        private ConcurrentDictionary<byte[], ManualResetEvent> Waiters = new ConcurrentDictionary<byte[], ManualResetEvent>(new StructuralEqualityComparer());
+        private ConcurrentDictionary<byte[], byte[]> Replies = new ConcurrentDictionary<byte[], byte[]>(new StructuralEqualityComparer());
 
         public event RemoteNodeMessageHandler FallbackMessageHandler;
         private HandlerDictionary<string, RemoteNodeMessageHandler> MessageHandlers = new HandlerDictionary<string, RemoteNodeMessageHandler>();
@@ -74,8 +75,8 @@ namespace Chordette
         public bool Disconnected { get; set; }
         public event OnRemoteNodeDisconnect DisconnectEvent;
 
-        private Dictionary<string, byte[]> RequestCache = new Dictionary<string, byte[]>();
-        private Dictionary<string, DateTime> CacheTimes = new Dictionary<string, DateTime>();
+        private ConcurrentDictionary<string, byte[]> RequestCache = new ConcurrentDictionary<string, byte[]>();
+        private ConcurrentDictionary<string, DateTime> CacheTimes = new ConcurrentDictionary<string, DateTime>();
 
         private byte[] RequestCached(string method, int timeout = 5000)
         {
@@ -269,9 +270,9 @@ namespace Chordette
             // TODO: Add timeouts to stop malicious peers from stalling us forever
             if (Disconnected || !flag.WaitOne(500))
             {
-                Replies.Remove(request_id);
-                Waiters.Remove(request_id);
-                Methods.Remove(request_id);
+                Replies.ForceRemove(request_id);
+                Waiters.ForceRemove(request_id);
+                Methods.ForceRemove(request_id);
 
                 if (Disconnected)
                     Log($"aborting waiting call {method}(0x{request_id.ToUsefulString()}) as we're disconnecting");
@@ -285,9 +286,9 @@ namespace Chordette
             {
                 var reply = Replies[request_id];
 
-                Replies.Remove(request_id);
-                Waiters.Remove(request_id);
-                Methods.Remove(request_id);
+                Replies.ForceRemove(request_id);
+                Waiters.ForceRemove(request_id);
+                Methods.ForceRemove(request_id);
 
                 return reply;
             }

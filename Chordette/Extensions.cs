@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -91,6 +92,12 @@ namespace Chordette
             Array.Copy(short_arr, 0, new_arr, 0, Math.Min(len, short_arr.Length));
 
             return new_arr;
+        }
+
+        public static void ForceRemove<TKey, TValue>(this ConcurrentDictionary<TKey, TValue> dict, TKey key)
+        {
+            while (dict.ContainsKey(key))
+                dict.TryRemove(key, out TValue _);
         }
 
         public static IEnumerable<T> ShuffleIterator<T>(this IEnumerable<T> source, Random random)
