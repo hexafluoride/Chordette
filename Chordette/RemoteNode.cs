@@ -346,11 +346,11 @@ namespace Chordette
                     {
                         var request_id = binary.ReadBytes(4);
                         var method_len = binary.ReadInt32();
-                        method_len = Math.Max(0, Math.Min(4096, method_len));
+                        method_len = Math.Max(0, Math.Min(1024, method_len));
 
                         var method = Encoding.ASCII.GetString(binary.ReadBytes(method_len));
                         var param_len = binary.ReadInt32();
-                        param_len = Math.Max(0, Math.Min(4096, param_len));
+                        param_len = Math.Max(0, Math.Min(65536, param_len));
                         
                         var parameter = binary.ReadBytes(param_len);
 
@@ -365,7 +365,7 @@ namespace Chordette
                             Task.Run(() => FallbackMessageHandler?.Invoke(this, new RemoteNodeMessageEventArgs(method, ID, request_id, parameter))).ConfigureAwait(false);
                         }
 
-                        Log($"received call to {method}(0x{request_id.ToUsefulString()}) with {param_len}-byte param {parameter.ToUsefulString()} (handler: {(MessageHandlers.ContainsKey(method) ? "YES" : "NO")})");
+                        Log($"received call to {method}(0x{request_id.ToUsefulString()}) with {param_len}-byte param {parameter.ToUsefulString(true)} (handler: {(MessageHandlers.ContainsKey(method) ? "YES" : "NO")})");
                         ReceivedMessages++;
                         LastMessage = DateTime.UtcNow;
                     }
@@ -373,7 +373,7 @@ namespace Chordette
                     {
                         var request_id = binary.ReadBytes(4);
                         var result_len = binary.ReadInt32();
-                        result_len = Math.Max(0, Math.Min(4096, result_len));
+                        result_len = Math.Max(0, Math.Min(65536, result_len));
 
                         var result = binary.ReadBytes(result_len);
 
@@ -383,7 +383,7 @@ namespace Chordette
                             continue;
                         }
 
-                        Log($"received {result_len}-byte reply to {Methods[request_id]}(0x{request_id.ToUsefulString()})");
+                        Log($"received {result_len}-byte reply to {Methods[request_id]}(0x{request_id.ToUsefulString(true)})");
                         ReceivedMessages++;
                         LastMessage = DateTime.UtcNow;
 
