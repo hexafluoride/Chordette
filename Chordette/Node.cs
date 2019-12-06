@@ -35,7 +35,7 @@ namespace Chordette
         protected TcpListener Listener { get; set; }
         protected Thread ListenerThread { get; set; }
 
-        protected internal bool Joined { get; set; }
+        public bool Joined { get; set; }
 
         protected void Log(string msg)
         {
@@ -220,6 +220,8 @@ namespace Chordette
 
         public bool Join(byte[] id)
         {
+            Log($"Joining {id.ToUsefulString()}...");
+
             if (id != null && id.Length != 0)
             {
                 var n_prime = Network[id];
@@ -246,13 +248,13 @@ namespace Chordette
 
                 Log($"New successor: {proposed_successor.ToUsefulString()}");
                 Successor = proposed_successor;
+                Joined = true;
             }
             else
             {
                 Predecessor = id;
             }
 
-            Joined = true;
             return true;
         }
 
