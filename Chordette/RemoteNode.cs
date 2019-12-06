@@ -159,6 +159,9 @@ namespace Chordette
             
             ID = Request("get_id");
             ConnectionTime = DateTime.UtcNow;
+
+            if (ID == null)
+                Disconnect(false);
         }
 
         public void Disconnect(bool temporary, bool message = true)
@@ -238,6 +241,8 @@ namespace Chordette
                 request_builder.Write(parameter.Length);
                 request_builder.Write(parameter);
 
+
+                Log($"sending invocation to {method} with {parameter.Length}-byte param {parameter.ToUsefulString(true)}");
                 SendRawMessage(request_ms);
             }
         }
@@ -267,6 +272,7 @@ namespace Chordette
                 request_builder.Write(parameter.Length);
                 request_builder.Write(parameter);
 
+                Log($"sending request to {method}(0x{request_id.ToUsefulString()}) with {parameter.Length}-byte param {parameter.ToUsefulString(true)}");
                 SendRawMessage(request_ms);
             }
 

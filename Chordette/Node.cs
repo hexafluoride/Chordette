@@ -58,6 +58,8 @@ namespace Chordette
             SuccessorChanged += (s, e) => { Log($"Successor changed " +
                 $"from {e.PreviousSuccessor.ToUsefulString(true)} " +
                 $"to {e.NewSuccessor.ToUsefulString(true)}"); };
+
+            Predecessor = new byte[0];
         }
 
         public Node(IPAddress listen_addr, int port, int m) :
@@ -222,7 +224,7 @@ namespace Chordette
         {
             Log($"Joining {id.ToUsefulString()}...");
 
-            if (id != null && id.Length != 0)
+            if (!Joined)
             {
                 var n_prime = Network[id];
 
@@ -250,12 +252,8 @@ namespace Chordette
                 Successor = proposed_successor;
                 Joined = true;
             }
-            else
-            {
-                Predecessor = id;
-            }
 
-            return true;
+            return Joined;
         }
 
         public void Stabilize()
@@ -268,7 +266,7 @@ namespace Chordette
                 Successor = ID;
 
                 var peers_ordered_by_chord_dist = Network
-                    .Where(p => !p.ID.SequenceEqual(ID))
+                    .Where(p => !p.ID.SequenceEqual(ID) && Network.IsReachable(p.ID))
                     .Select(Node => (Node, NodeHelpers.Distance(ID, Node.ID, Network.M)))
                     .OrderBy(tuple => tuple.Item2)
                     .Select(tuple => tuple.Node)
@@ -322,7 +320,7 @@ namespace Chordette
 
                         if (peer != null)
                         {
-                            //peer.NotifyBackwards(Predecessor);
+                            peer.NotifyBackwards(Predecessor);
                         }
                     }
                 }
