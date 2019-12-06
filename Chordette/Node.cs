@@ -142,7 +142,7 @@ namespace Chordette
             return Network.GetCandidatePeers().Take(max).Where(id => Network.Connect(id) != null).ToList();
         }
 
-        public virtual RemoteNode Connect(IPEndPoint ep)
+        public virtual RemoteNode CreateRemoteNode(IPEndPoint ep)
         {
             Log($"Connecting to {ep}...");
 

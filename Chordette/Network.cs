@@ -100,7 +100,7 @@ namespace Chordette
             var port_bytes = id.Skip(offset + 4).Take(2).ToArray();
 
             var endpoint = new IPEndPoint(new IPAddress(ip_bytes), BitConverter.ToUInt16(port_bytes, 0));
-            var node = Self.Connect(endpoint);
+            var node = Self.CreateRemoteNode(endpoint);
 
             if (node == null)
             {
