@@ -50,7 +50,7 @@ namespace Chordette
                 Console.WriteLine($"] {msg}");
             }
 #else
-            Logger.Debug(msg);
+            Logger.Debug($"[{ID.ToUsefulString(true)}] {msg}");
 #endif
         }
 

@@ -102,13 +102,13 @@ namespace Chordette
             lock (Extensions.GlobalPrintLock)
             {
                 Console.Write($"{DateTime.UtcNow.ToString("HH:mm:ss.ffff")} [");
-                ID.Print();
-                Console.Write(":");
                 SelfNode.ID.Print();
+                Console.Write(":");
+                ID.Print();
                 Console.WriteLine($"] {msg}");
             }
 #else
-            Logger.Debug(msg);
+            Logger.Debug($"[{SelfNode.ID.ToUsefulString(true)}:{ID.ToUsefulString(true)}] {msg}");
 #endif
         }
 
