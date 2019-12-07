@@ -246,7 +246,8 @@ namespace Chordette
                     max_tries-- > 0)
                     proposed_successor = n_prime.FindSuccessor(this.ID);
                 
-                if(proposed_successor == null || proposed_successor.Length != id.Length)
+                if(proposed_successor == null || proposed_successor.Length != id.Length ||
+                    proposed_successor.SequenceEqual(this.ID))
                 {
                     Log($"Failed to join the network, exiting");
                     Network.Clear();
