@@ -35,9 +35,7 @@ namespace Chordette
 
         public IEnumerable<byte[]> GetCandidatePeers()
         {
-            var valid = CandidatePeers
-                /*.Where(id => IsReachable(id, strong_check: false))*/
-                .Where(id => !Nodes.ContainsKey(id));
+            var valid = CandidatePeers.Where(id => !Nodes.ContainsKey(id));
 
             return valid;
         }
@@ -154,16 +152,20 @@ namespace Chordette
         {
             if (CurrentPeers >= MaximumPeers)
             {
-                // purge disconnected peers
-                foreach (var dead_node in Nodes.Values.OfType<RemoteNode>().Where(remote_node => remote_node.Disconnected))
-                    Remove(dead_node.ID);
-            }
+                var purgable_peers = Nodes.Values
+                    .OfType<RemoteNode>()
+                    .Where(n => Self?.Successor?.SequenceEqual(n?.ID) != true && Self?.Predecessor?.SequenceEqual(n?.ID) != true);
 
-            if (CurrentPeers >= MaximumPeers) // if we STILL need to purge peers
-            { 
-                var oldest_connection = Nodes.Values.OfType<RemoteNode>().OrderByDescending(n => DateTime.UtcNow - n.ConnectionTime).FirstOrDefault();
-                oldest_connection.Disconnect(true); // we're only temporarily disconnecting
-                Remove(oldest_connection.ID);
+                // purge disconnected peers
+                foreach (var dead_node in purgable_peers.Where(remote_node => remote_node.Disconnected))
+                    Remove(dead_node.ID);
+
+                if (CurrentPeers >= MaximumPeers) // if we STILL need to purge peers
+                {
+                    var oldest_connection = purgable_peers.OrderByDescending(n => DateTime.UtcNow - n.ConnectionTime).FirstOrDefault();
+                    oldest_connection.Disconnect(true); // we're only temporarily disconnecting
+                    Remove(oldest_connection.ID);
+                }
             }
             
             if (!Nodes.ContainsKey(node.ID))
