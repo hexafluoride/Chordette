@@ -2,6 +2,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Numerics;
 using System.Text;
 
@@ -9,6 +11,11 @@ namespace Chordette
 {
     public static class Extensions
     {
+        public static IPEndPoint TryGetRemoteEndPoint(this Socket socket)
+        {
+            try { return socket.RemoteEndPoint as IPEndPoint; } catch { return null; }
+        }
+
         public static string ToUsefulString(this byte[] arr, bool shorten = false)
         {
             if (arr == null || arr.Length == 0)

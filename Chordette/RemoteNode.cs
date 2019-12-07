@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -61,6 +62,7 @@ namespace Chordette
         public DateTime LastMessage { get; set; }
 
         public Socket Connection { get; set; }
+        public IPEndPoint RemoteEndPoint => Connection.TryGetRemoteEndPoint();
 
         private ConcurrentDictionary<byte[], string> Methods = new ConcurrentDictionary<byte[], string>(new StructuralEqualityComparer()); // used for debugging purposes only
         private ConcurrentDictionary<byte[], ManualResetEvent> Waiters = new ConcurrentDictionary<byte[], ManualResetEvent>(new StructuralEqualityComparer());
@@ -171,8 +173,12 @@ namespace Chordette
 
         public void Disconnect(bool temporary, bool message = true)
         {
-            if (message)
-                Invoke("disconnect", new byte[] { (byte)(temporary ? 0 : 1) }); // let our peer know that we're going to disconnect
+            try
+            {
+                if (message)
+                    Invoke("disconnect", new byte[] { (byte)(temporary ? 0 : 1) }); // let our peer know that we're going to disconnect
+            }
+            catch { }
 
             try
             {

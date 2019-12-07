@@ -36,7 +36,6 @@ namespace Chordette
         public IEnumerable<byte[]> GetCandidatePeers()
         {
             var valid = CandidatePeers.Where(id => !Nodes.ContainsKey(id));
-
             return valid;
         }
 
