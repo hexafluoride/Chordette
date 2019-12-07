@@ -411,7 +411,7 @@ namespace Chordette
                 {
                     Log($"{ex.GetType()} thrown in ReceiveLoop(): {ex.Message}");
 
-                    if (!Connection.Connected)
+                    if (!Connection.Connected || ex is EndOfStreamException)
                         Disconnect(false, false);
                 }
             }
