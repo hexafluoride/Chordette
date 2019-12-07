@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NLog;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -37,15 +38,19 @@ namespace Chordette
 
         public bool Joined { get; set; }
 
+        private static Logger Logger = LogManager.GetCurrentClassLogger();
+
         protected void Log(string msg)
         {
 #if DEBUG
             lock (Extensions.GlobalPrintLock)
             {
-                Console.Write($"{DateTime.UtcNow.ToString("HH:mm:ss.ffff")} [");
+                Console.Write($"{DateTime.UtcNow.ToString("HH:mm:ss.fff")} [");
                 ID.Print();
                 Console.WriteLine($"] {msg}");
             }
+#else
+            Logger.Debug(msg);
 #endif
         }
 

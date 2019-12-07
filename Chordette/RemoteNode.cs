@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NLog;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -93,6 +94,8 @@ namespace Chordette
             return RequestCache[method];
         }
 
+        private static Logger Logger = LogManager.GetCurrentClassLogger();
+
         protected void Log(string msg)
         {
 #if DEBUG
@@ -104,6 +107,8 @@ namespace Chordette
                 SelfNode.ID.Print();
                 Console.WriteLine($"] {msg}");
             }
+#else
+            Logger.Debug(msg);
 #endif
         }
 
