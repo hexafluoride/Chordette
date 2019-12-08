@@ -185,14 +185,14 @@ namespace Chordette
                     break;
                 }
                 
-                if (!Network.IsReachable(next_n_prime_id))
+                n_prime = Network[next_n_prime_id];
+
+                if (n_prime == null)
                 {
                     // TODO: figure out how to actually handle this
                     Log("FindPredecessor has failed!");
                     return id;
                 }
-
-                n_prime = Network[next_n_prime_id];
             }
 
             return n_prime.ID;
