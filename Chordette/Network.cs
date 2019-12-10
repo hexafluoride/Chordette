@@ -143,7 +143,7 @@ namespace Chordette
 
         private void Remove(byte[] id)
         {
-            Nodes.ForceRemove(id);
+            Nodes.TryRemove(id, out INode _);
             Interlocked.Decrement(ref CurrentPeers);
         }
 

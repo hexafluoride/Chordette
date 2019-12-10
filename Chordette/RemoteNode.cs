@@ -290,9 +290,9 @@ namespace Chordette
             // TODO: Add timeouts to stop malicious peers from stalling us forever
             if (Disconnected || !flag.WaitOne(500))
             {
-                Replies.ForceRemove(request_id);
-                Waiters.ForceRemove(request_id);
-                Methods.ForceRemove(request_id);
+                Replies.Remove(request_id, out var _);
+                Waiters.Remove(request_id, out var _);
+                Methods.Remove(request_id, out var _);
 
                 if (Disconnected)
                     Log($"aborting waiting call {method}(0x{request_id.ToUsefulString()}) as we're disconnecting");
@@ -306,9 +306,9 @@ namespace Chordette
             {
                 var reply = Replies[request_id];
 
-                Replies.ForceRemove(request_id);
-                Waiters.ForceRemove(request_id);
-                Methods.ForceRemove(request_id);
+                Replies.Remove(request_id, out var _);
+                Waiters.Remove(request_id, out var _);
+                Methods.Remove(request_id, out var _);
 
                 return reply;
             }

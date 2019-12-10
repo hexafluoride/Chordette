@@ -101,12 +101,6 @@ namespace Chordette
             return new_arr;
         }
 
-        public static void ForceRemove<TKey, TValue>(this ConcurrentDictionary<TKey, TValue> dict, TKey key)
-        {
-            while (dict.ContainsKey(key))
-                dict.TryRemove(key, out TValue _);
-        }
-
         public static IEnumerable<T> ShuffleIterator<T>(this IEnumerable<T> source, Random random)
         {
             var buffer = source.ToList();
