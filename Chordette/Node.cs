@@ -272,6 +272,7 @@ namespace Chordette
                 Successor = ID;
 
                 var peers_ordered_by_chord_dist = Network
+                    .OfType<RemoteNode>()
                     .Where(p => !p.ID.SequenceEqual(ID) && Network.IsReachable(p.ID))
                     .Select(Node => (Node, NodeHelpers.Distance(ID, Node.ID, Network.M)))
                     .OrderBy(tuple => tuple.Item2)
