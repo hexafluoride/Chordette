@@ -251,8 +251,7 @@ namespace Chordette
                 request_builder.Write(Encoding.ASCII.GetBytes(method));
                 request_builder.Write(parameter.Length);
                 request_builder.Write(parameter);
-
-
+                
                 Log($"sending invocation to {method} with {parameter.Length}-byte param {parameter.ToUsefulString(true)}");
                 SendRawMessage(request_ms);
             }
