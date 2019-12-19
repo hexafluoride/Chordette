@@ -16,20 +16,18 @@ namespace Chordette
             try { return socket.RemoteEndPoint as IPEndPoint; } catch { return null; }
         }
 
+        private static string ByteArrayToString(byte[] arr) => BitConverter.ToString(arr).Replace("-", "").ToLower();
+        private static string ByteArrayToString(byte[] arr, int start, int len) => BitConverter.ToString(arr, start, len).Replace("-", "").ToLower();
+
         public static string ToUsefulString(this byte[] arr, bool shorten = false)
         {
             if (arr == null || arr.Length == 0)
                 return "(none)";
 
-            var ret = BitConverter.ToString(arr).Replace("-", "").ToLower();
-
-            if (!shorten)
-                return ret;
-
-            if (ret.Length < 11)
-                return ret;
-
-            return ret.Substring(0, 4) + "..." + ret.Substring(ret.Length - 4, 4);
+            if (!shorten || arr.Length <= 5)
+                return ByteArrayToString(arr);
+            
+            return ByteArrayToString(arr, 0, 2) + "..." + ByteArrayToString(arr, arr.Length - 2, 2);
         }
 
         public static readonly object GlobalPrintLock = new object();
