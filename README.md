@@ -4,9 +4,9 @@ Simplified implementation of the [Chord DHT model](https://pdos.csail.mit.edu/pa
 ## Features
 
 - [x] All Chord primitives as described in the [whitepaper](https://pdos.csail.mit.edu/papers/chord:sigcomm01/chord_sigcomm.pdf)
-- [x] Actual networking
-- [ ] A higher layer to Chord, handling things like key handoff and abstraction of the `successor(hash(key)).{get, put}(hash(key))` chain
-- [ ] Data duplication
+- [x] Networking support, with a tracker system implemented in [hexafluoride/Harmony](https://github.com/hexafluoride/Harmony)
+- [x] A higher layer to Chord, handling things like key handoff and abstraction of the `successor(hash(key)).{get, put}(hash(key))` chain: implemented in [hexafluoride/Harmony](https://github.com/hexafluoride/Harmony)
+- [x] Data duplication: implemented in [hexafluoride/Harmony](https://github.com/hexafluoride/Harmony)
 
 ## Performance metrics
 The following metrics all scale with log(N) where N = peer count, matching the performance guarantees laid out in the [Chord whitepaper](https://pdos.csail.mit.edu/papers/chord:sigcomm01/chord_sigcomm.pdf), which corroborates the correctness of this implementation to some degree.
